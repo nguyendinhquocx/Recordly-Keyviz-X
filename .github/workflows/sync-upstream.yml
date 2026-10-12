@@ -1,9 +1,9 @@
 name: Sync upstream
 
 on:
-  schedule:
-    # 03:17 Asia/Ho_Chi_Minh = 20:17 UTC hôm trước
-    - cron: "17 20 * * *"
+  # Schedule disabled 2026-10-12: this fork diverges heavily from upstream (keyviz
+  # integration, hotkeys, vi-UI, own releases) - daily auto-merge drifts main without
+  # review. Manual sync only: Actions tab -> Run workflow.
   workflow_dispatch:
 
 permissions:
