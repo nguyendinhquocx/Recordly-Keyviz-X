@@ -179,6 +179,7 @@ export function useExportDialogActions({
 	return {
 		handleOpenExportDropdown,
 		handleStartExportFromDropdown,
+		resolveCurrentSettings,
 		prepareExportForShare,
 		handleCancelExport,
 		handleExportDropdownClose,

@@ -57,9 +57,32 @@ const namespaceFiles = fs
 
 let hasErrors = false;
 
+const PLACEHOLDER_PATTERN = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
+
+function collectPlaceholders(value) {
+	if (typeof value !== "string") return new Set();
+	const found = new Set();
+	for (const match of value.matchAll(PLACEHOLDER_PATTERN)) {
+		found.add(match[1]);
+	}
+	return found;
+}
+
+function collectLeafEntries(obj, prefix = "", into = []) {
+	if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+		for (const [key, value] of Object.entries(obj)) {
+			collectLeafEntries(value, prefix ? `${prefix}.${key}` : key, into);
+		}
+		return into;
+	}
+	into.push([prefix, obj]);
+	return into;
+}
+
 for (const namespaceFile of namespaceFiles) {
 	const baseData = loadJson(path.join(baseLocaleDir, namespaceFile));
 	const baseKeys = new Set(collectKeyPaths(baseData));
+	const baseEntries = new Map(collectLeafEntries(baseData));
 
 	for (const locale of locales) {
 		if (locale === "en") continue;
@@ -85,6 +108,44 @@ for (const namespaceFile of namespaceFiles) {
 			if (!baseKeys.has(key)) {
 				console.error(`i18n-check: extra key ${locale}/${namespaceFile}:${key}`);
 				hasErrors = true;
+			}
+		}
+
+		// Interpolation placeholder parity: a translated string must consume the
+		// exact same {{placeholders}} as the base locale, otherwise runtime calls
+		// with vars silently render unfilled templates.
+		for (const [key, baseValue] of baseEntries) {
+			if (typeof baseValue !== "string") continue;
+			const basePlaceholders = collectPlaceholders(baseValue);
+			if (basePlaceholders.size === 0) continue;
+			const localeValue = localeData;
+			let cursor = localeValue;
+			let missingPath = false;
+			for (const part of key.split(".")) {
+				if (cursor && typeof cursor === "object" && part in cursor) {
+					cursor = cursor[part];
+				} else {
+					missingPath = true;
+					break;
+				}
+			}
+			if (missingPath || typeof cursor !== "string") continue;
+			const localePlaceholders = collectPlaceholders(cursor);
+			for (const placeholder of basePlaceholders) {
+				if (!localePlaceholders.has(placeholder)) {
+					console.error(
+						`i18n-check: missing placeholder {{${placeholder}}} in ${locale}/${namespaceFile}:${key}`,
+					);
+					hasErrors = true;
+				}
+			}
+			for (const placeholder of localePlaceholders) {
+				if (!basePlaceholders.has(placeholder)) {
+					console.error(
+						`i18n-check: extra placeholder {{${placeholder}}} in ${locale}/${namespaceFile}:${key}`,
+					);
+					hasErrors = true;
+				}
 			}
 		}
 	}

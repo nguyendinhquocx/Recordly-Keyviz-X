@@ -40,6 +40,10 @@ interface ExportSettingsMenuProps {
 	onGifSizePresetChange?: (preset: GifSizePreset) => void;
 	gifOutputDimensions: { width: number; height: number };
 	onExport?: () => void;
+	/** Override the footer CTA label (e.g. "Export 10 clips" for batch mode). */
+	exportActionLabel?: string;
+	exportActionDisabled?: boolean;
+	exportActionHint?: string;
 	className?: string;
 	hideHeading?: boolean;
 	hideAction?: boolean;
@@ -121,6 +125,9 @@ export function ExportSettingsMenu({
 	onGifSizePresetChange,
 	gifOutputDimensions,
 	onExport,
+	exportActionLabel,
+	exportActionDisabled = false,
+	exportActionHint,
 	className,
 	hideHeading = false,
 	hideAction = false,
@@ -267,13 +274,22 @@ export function ExportSettingsMenu({
 				)}
 			</Card.Content>
 			{!hideAction && (
-				<Card.Footer>
-					<Button size="lg" onClick={onExport} className="w-full">
+				<Card.Footer className="gap-2">
+					<Button
+						size="lg"
+						onClick={onExport}
+						disabled={exportActionDisabled}
+						className="w-full"
+					>
 						<Download />
-						{tSettings("export.exportVideo", undefined, {
-							format: exportFormat === "gif" ? "GIF" : "Video",
-						})}
+						{exportActionLabel ??
+							tSettings("export.exportVideo", undefined, {
+								format: exportFormat === "gif" ? "GIF" : "Video",
+							})}
 					</Button>
+					{exportActionHint ? (
+						<Description>{exportActionHint}</Description>
+					) : null}
 				</Card.Footer>
 			)}
 		</Card>

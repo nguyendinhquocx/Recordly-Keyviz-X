@@ -135,7 +135,7 @@ export function EditorShell(props: Props) {
 		handleSelectAnnotation,
 		handleAutoSuggestZoomsConsumed,
 	} = editing;
-	const { dialogActions, status: exportStatus, exportMessage } = exportController;
+	const { dialogActions, status: exportStatus, exportMessage, batchExport } = exportController;
 	const dashboardSettingsContent = useMemo(
 		() => (
 			<SettingsPanel
@@ -293,6 +293,7 @@ export function EditorShell(props: Props) {
 				accountId={auth.user?.id}
 				revealExportedFile={dialogActions.revealExportedFile}
 				exportMessage={exportMessage}
+				batchExport={batchExport}
 			/>
 			<EditorAnnouncementBanner />
 			<div

@@ -225,5 +225,28 @@
 		"expand": "展开时间轴",
 		"collapse": "折叠时间轴"
 	},
-	"openRecordingsFolder": "打开录制文件夹"
+	"openRecordingsFolder": "打开录制文件夹",
+	"exportMode": {
+		"title": "输出",
+		"fullTimeline": "完整时间线",
+		"separateClips": "分段剪辑",
+		"gifUnsupported": "分段剪辑仅支持导出 MP4。请将格式切换为 MP4，或让 GIF 保持完整时间线。",
+		"separateClipsHint": "将时间线上的每个剪辑保存为单独的 MP4，存入你一次性选择的文件夹。"
+	},
+	"exportActions": {
+		"exportSeparateClips": "导出 {{count}} 个剪辑",
+		"noValidClips": "没有可导出的有效剪辑",
+		"noValidClipsHint": "导出前请修剪时间线，至少保留一个剪辑。"
+	},
+	"batchExport": {
+		"exporting": "正在导出剪辑",
+		"progress": "第 {{current}} / {{total}} 个剪辑",
+		"cancelledTitle": "导出已取消",
+		"partialTitle": "导出完成但有部分问题",
+		"completeTitle": "全部剪辑已导出",
+		"resultSummary": "已保存 {{completed}} / {{total}} 个剪辑。",
+		"sidecarWarning": "{{count}} 个剪辑保存时缺少字幕文件。",
+		"clipFailed": "剪辑 {{index}}：{{error}}",
+		"retryFailed": "重试失败的剪辑"
+	}
 }

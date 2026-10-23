@@ -22,6 +22,14 @@ export interface ExportPreferences {
 	gifSizePreset: GifSizePreset;
 	publishDestination: "link" | "local";
 	includeCaptionSidecar: boolean;
+	/** Local MP4 output layout: one file, or one file per timeline clip. */
+	exportMode: ExportMode;
+}
+
+export type ExportMode = "full-timeline" | "separate-clips";
+
+export function normalizeExportMode(value: unknown): ExportMode {
+	return value === "separate-clips" ? "separate-clips" : "full-timeline";
 }
 
 export function normalizeExportEncodingMode(value: unknown): ExportEncodingMode {
@@ -80,5 +88,8 @@ export function normalizeExportPreferences(raw: Partial<ExportPreferences>): Exp
 				: "medium",
 		publishDestination: raw.publishDestination === "local" ? "local" : "link",
 		includeCaptionSidecar: raw.includeCaptionSidecar === true,
+		// Missing/invalid exportMode (fresh install or legacy preferences)
+		// normalizes to the incumbent full-timeline output.
+		exportMode: normalizeExportMode(raw.exportMode),
 	};
 }

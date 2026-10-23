@@ -225,5 +225,28 @@
 		"expand": "Tijdlijn uitvouwen",
 		"collapse": "Tijdlijn samenvouwen"
 	},
-	"openRecordingsFolder": "Opnamemap openen"
+	"openRecordingsFolder": "Opnamemap openen",
+	"exportMode": {
+		"title": "Uitvoer",
+		"fullTimeline": "Volledige tijdlijn",
+		"separateClips": "Losse clips",
+		"gifUnsupported": "Losse clips exporteert alleen MP4. Wijzig het formaat naar MP4 of houd GIF op Volledige tijdlijn.",
+		"separateClipsHint": "Slaat elke tijdlijnclip op als eigen MP4 in de eenmalig gekozen map."
+	},
+	"exportActions": {
+		"exportSeparateClips": "{{count}} clips exporteren",
+		"noValidClips": "Geen geldige clips om te exporteren",
+		"noValidClipsHint": "Maak de tijdlijn korter zodat er minstens één clip overblijft voordat je exporteert."
+	},
+	"batchExport": {
+		"exporting": "Clips worden geëxporteerd",
+		"progress": "{{current}} van {{total}} clips",
+		"cancelledTitle": "Export geannuleerd",
+		"partialTitle": "Export voltooid met problemen",
+		"completeTitle": "Alle clips geëxporteerd",
+		"resultSummary": "{{completed}} van {{total}} clips opgeslagen.",
+		"sidecarWarning": "{{count}} clip(s) opgeslagen zonder ondertitelbestanden.",
+		"clipFailed": "Clip {{index}}: {{error}}",
+		"retryFailed": "Mislukte clips opnieuw proberen"
+	}
 }

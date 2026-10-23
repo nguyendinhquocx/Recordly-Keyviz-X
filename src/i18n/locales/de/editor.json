@@ -225,5 +225,28 @@
 		"expand": "Zeitleiste erweitern",
 		"collapse": "Zeitleiste reduzieren"
 	},
-	"openRecordingsFolder": "Aufnahmeordner öffnen"
+	"openRecordingsFolder": "Aufnahmeordner öffnen",
+	"exportMode": {
+		"title": "Ausgabe",
+		"fullTimeline": "Ganze Timeline",
+		"separateClips": "Einzelne Clips",
+		"gifUnsupported": "Einzelne Clips unterstützt nur MP4. Wechsle das Format zu MP4 oder behalte GIF bei Ganze Timeline.",
+		"separateClipsHint": "Speichert jeden Timeline-Clip als eigene MP4-Datei in dem einmal gewählten Ordner."
+	},
+	"exportActions": {
+		"exportSeparateClips": "{{count}} Clips exportieren",
+		"noValidClips": "Keine gültigen Clips zum Export",
+		"noValidClipsHint": "Kürze die Timeline auf mindestens einen Clip, bevor du exportierst."
+	},
+	"batchExport": {
+		"exporting": "Clips werden exportiert",
+		"progress": "{{current}} von {{total}} Clips",
+		"cancelledTitle": "Export abgebrochen",
+		"partialTitle": "Export mit Problemen abgeschlossen",
+		"completeTitle": "Alle Clips exportiert",
+		"resultSummary": "{{completed}} von {{total}} Clips gespeichert.",
+		"sidecarWarning": "{{count}} Clip(s) ohne Untertiteldateien gespeichert.",
+		"clipFailed": "Clip {{index}}: {{error}}",
+		"retryFailed": "Fehlgeschlagene Clips erneut versuchen"
+	}
 }

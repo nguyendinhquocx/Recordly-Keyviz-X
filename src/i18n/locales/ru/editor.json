@@ -225,5 +225,28 @@
 		"expand": "Развернуть таймлайн",
 		"collapse": "Свернуть таймлайн"
 	},
-	"openRecordingsFolder": "Открыть папку с записями"
+	"openRecordingsFolder": "Открыть папку с записями",
+	"exportMode": {
+		"title": "Вывод",
+		"fullTimeline": "Вся таймлайн",
+		"separateClips": "Отдельные клипы",
+		"gifUnsupported": "Отдельные клипы экспортирует только MP4. Смените формат на MP4 или оставьте GIF для всей таймлайна.",
+		"separateClipsHint": "Сохраняет каждый клип таймлайна отдельным MP4 в выбранную один раз папку."
+	},
+	"exportActions": {
+		"exportSeparateClips": "Экспортировать клипы ({{count}})",
+		"noValidClips": "Нет допустимых клипов для экспорта",
+		"noValidClipsHint": "Обрежьте таймлайн, оставив хотя бы один клип, перед экспортом."
+	},
+	"batchExport": {
+		"exporting": "Экспорт клипов",
+		"progress": "{{current}} из {{total}} клипов",
+		"cancelledTitle": "Экспорт отменён",
+		"partialTitle": "Экспорт завершён с проблемами",
+		"completeTitle": "Все клипы экспортированы",
+		"resultSummary": "Сохранено {{completed}} из {{total}} клипов.",
+		"sidecarWarning": "{{count}} клип(ов) сохранены без файлов субтитров.",
+		"clipFailed": "Клип {{index}}: {{error}}",
+		"retryFailed": "Повторить неудавшиеся клипы"
+	}
 }

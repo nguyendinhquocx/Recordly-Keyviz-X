@@ -225,5 +225,28 @@
 		"expand": "Développer la timeline",
 		"collapse": "Réduire la timeline"
 	},
-	"openRecordingsFolder": "Ouvrir le dossier des enregistrements"
+	"openRecordingsFolder": "Ouvrir le dossier des enregistrements",
+	"exportMode": {
+		"title": "Sortie",
+		"fullTimeline": "Timeline complète",
+		"separateClips": "Clips séparés",
+		"gifUnsupported": "Clips séparés exporte uniquement en MP4. Passez le format en MP4 ou gardez GIF sur Timeline complète.",
+		"separateClipsHint": "Enregistre chaque clip de la timeline en un MP4 dans le dossier choisi une seule fois."
+	},
+	"exportActions": {
+		"exportSeparateClips": "Exporter {{count}} clips",
+		"noValidClips": "Aucun clip valide à exporter",
+		"noValidClipsHint": "Raccourcissez la timeline pour garder au moins un clip avant d'exporter."
+	},
+	"batchExport": {
+		"exporting": "Export des clips",
+		"progress": "{{current}} sur {{total}} clips",
+		"cancelledTitle": "Export annulé",
+		"partialTitle": "Export terminé avec des problèmes",
+		"completeTitle": "Tous les clips exportés",
+		"resultSummary": "{{completed}} sur {{total}} clips enregistrés.",
+		"sidecarWarning": "{{count}} clip(s) enregistré(s) sans fichiers de sous-titres.",
+		"clipFailed": "Clip {{index}} : {{error}}",
+		"retryFailed": "Réessayer les clips en échec"
+	}
 }

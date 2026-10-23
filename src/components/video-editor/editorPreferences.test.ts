@@ -126,6 +126,29 @@ describe("editorPreferences", () => {
 		});
 	});
 
+	it("defaults Local export mode to full timeline on fresh install", () => {
+		expect(DEFAULT_EDITOR_PREFERENCES.exportMode).toBe("full-timeline");
+		expect(normalizeEditorPreferences({})).toMatchObject({ exportMode: "full-timeline" });
+	});
+
+	it("normalizes missing or invalid exportMode back to full timeline", () => {
+		expect(normalizeEditorPreferences({ exportMode: undefined })).toMatchObject({
+			exportMode: "full-timeline",
+		});
+		expect(normalizeEditorPreferences({ exportMode: "wizard-batch" })).toMatchObject({
+			exportMode: "full-timeline",
+		});
+		expect(normalizeEditorPreferences({ exportMode: 42 })).toMatchObject({
+			exportMode: "full-timeline",
+		});
+	});
+
+	it("keeps the last valid separate-clips export mode", () => {
+		expect(normalizeEditorPreferences({ exportMode: "separate-clips" })).toMatchObject({
+			exportMode: "separate-clips",
+		});
+	});
+
 	it("bakes in the stronger split motion blur defaults", () => {
 		expect(DEFAULT_EDITOR_PREFERENCES.zoomMotionBlurTuning).toMatchObject({
 			panVelocityThreshold: 0,

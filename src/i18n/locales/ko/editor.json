@@ -225,5 +225,28 @@
 		"expand": "타임라인 펼치기",
 		"collapse": "타임라인 접기"
 	},
-	"openRecordingsFolder": "녹화 폴더 열기"
+	"openRecordingsFolder": "녹화 폴더 열기",
+	"exportMode": {
+		"title": "출력",
+		"fullTimeline": "전체 타임라인",
+		"separateClips": "개별 클립",
+		"gifUnsupported": "개별 클립은 MP4만 내보낼 수 있습니다. 형식을 MP4로 변경하거나 GIF는 전체 타임라인을 유지하세요.",
+		"separateClipsHint": "타임라인의 각 클립을 한 번에 선택한 폴더에 개별 MP4로 저장합니다."
+	},
+	"exportActions": {
+		"exportSeparateClips": "클립 {{count}}개 내보내기",
+		"noValidClips": "내보낼 유효한 클립이 없습니다",
+		"noValidClipsHint": "내보내기 전에 타임라인에서 최소 한 개의 클립을 남겨두세요."
+	},
+	"batchExport": {
+		"exporting": "클립 내보내는 중",
+		"progress": "{{total}}개 중 {{current}}개 클립",
+		"cancelledTitle": "내보내기 취소됨",
+		"partialTitle": "내보내기에 문제가 있습니다",
+		"completeTitle": "모든 클립 내보내기 완료",
+		"resultSummary": "{{total}}개 중 {{completed}}개 클립이 저장되었습니다.",
+		"sidecarWarning": "{{count}}개 클립이 자막 파일 없이 저장되었습니다.",
+		"clipFailed": "클립 {{index}}: {{error}}",
+		"retryFailed": "실패한 클립 다시 시도"
+	}
 }

@@ -131,6 +131,14 @@ export interface ClipBatchExporterOptions {
 	/** Max frames in the WebCodecs encode queue before backpressure waits. */
 	maxEncodeQueue?: number;
 	isCancelled: () => boolean;
+	/** Fired when a clip's output sink is created (rendering starts). */
+	onClipStart?: (plan: ClipExportPlan) => void;
+	/** Fired when a clip reaches a terminal render state (pre-commit). */
+	onClipResult?: (
+		plan: ClipExportPlan,
+		status: "completed" | "render-error" | "write-error" | "cancelled",
+		info?: { outputPath?: string; error?: string },
+	) => void;
 }
 
 interface ActiveClipSink {
@@ -145,10 +153,20 @@ interface ActiveClipSink {
 export class ClipBatchExporter {
 	private ports: ClipBatchRenderPorts;
 	private options: ClipBatchExporterOptions;
+	private localCancelled = false;
 
 	constructor(ports: ClipBatchRenderPorts, options: ClipBatchExporterOptions) {
 		this.ports = ports;
 		this.options = options;
+	}
+
+	/** Request cancellation; checked before every render/encode step. */
+	cancel(): void {
+		this.localCancelled = true;
+	}
+
+	private isCancelled(): boolean {
+		return this.localCancelled || this.options.isCancelled();
 	}
 
 	async exportBatch(): Promise<ClipBatchExportResult> {
@@ -159,7 +177,7 @@ export class ClipBatchExporter {
 			items.set(plan.clipId, { plan, status: "skipped" });
 		}
 		if (plans.length === 0) {
-			return { items: [], cancelled: this.options.isCancelled() };
+			return { items: [], cancelled: this.isCancelled() };
 		}
 
 		const frameDurationUs = 1_000_000 / frameRate;
@@ -186,12 +204,18 @@ export class ClipBatchExporter {
 					status: "write-error",
 					error: finished.error || "Batch output write failed",
 				});
+				this.options.onClipResult?.(current.plan, "write-error", {
+					error: finished.error || "Batch output write failed",
+				});
 				return;
 			}
 			items.set(current.plan.clipId, {
 				plan: current.plan,
 				status: "completed",
 				tempFilePath: finished.tempFilePath,
+			});
+			this.options.onClipResult?.(current.plan, "completed", {
+				outputPath: finished.tempFilePath,
 			});
 		};
 
@@ -203,6 +227,7 @@ export class ClipBatchExporter {
 				plan: current.plan,
 				status: "cancelled",
 			});
+			this.options.onClipResult?.(current.plan, "cancelled");
 			await current.sink.abort().catch(() => undefined);
 		};
 
@@ -242,7 +267,7 @@ export class ClipBatchExporter {
 						// Gap frame on the global grid: owned by no clip, never encoded.
 						return;
 					}
-					if (this.options.isCancelled()) {
+					if (this.isCancelled()) {
 						cancelled = true;
 						videoFrame.close();
 						return;
@@ -267,7 +292,7 @@ export class ClipBatchExporter {
 						// Rotate the MP4 output sink at the clip boundary. The renderer
 						// session continues untouched — camera/cursor/zoom state survives.
 						await finishActiveSink();
-						if (this.options.isCancelled()) {
+						if (this.isCancelled()) {
 							cancelled = true;
 							videoFrame.close();
 							return;
@@ -277,6 +302,7 @@ export class ClipBatchExporter {
 							sink: await this.ports.createSink(),
 							localFrameCount: 0,
 						};
+						this.options.onClipStart?.(plan);
 					}
 
 					const localFrame = currentGlobalFrame - plan.firstFrame;
@@ -294,17 +320,17 @@ export class ClipBatchExporter {
 							(currentGlobalFrame / frameRate) * 1_000_000,
 						);
 						videoFrame.close();
-						if (this.options.isCancelled()) {
+						if (this.isCancelled()) {
 							cancelled = true;
 							return;
 						}
 
 						const canvas = this.ports.renderer.getCanvas();
 						// Backpressure: wait while the encode queue is saturated.
-						while (encodeBacklog >= encodeQueueLimit && !this.options.isCancelled()) {
+						while (encodeBacklog >= encodeQueueLimit && !this.isCancelled()) {
 							await new Promise((resolve) => setTimeout(resolve, 1));
 						}
-						if (this.options.isCancelled()) {
+						if (this.isCancelled()) {
 							cancelled = true;
 							return;
 						}
@@ -337,6 +363,12 @@ export class ClipBatchExporter {
 										? frameError.message
 										: String(frameError),
 							});
+							this.options.onClipResult?.(plan, "render-error", {
+								error:
+									frameError instanceof Error
+										? frameError.message
+										: String(frameError),
+							});
 							await failed.sink.abort().catch(() => undefined);
 						} else {
 							throw frameError;
@@ -346,7 +378,7 @@ export class ClipBatchExporter {
 				this.options.clipRegions,
 			);
 
-			if (cancelled || this.options.isCancelled()) {
+			if (cancelled || this.isCancelled()) {
 				cancelled = true;
 				await abortActiveSink();
 				// Already-finished sinks stay completed; later clips keep "skipped".
@@ -382,7 +414,7 @@ export class ClipBatchExporter {
 		// Attach the clip-local edited audio track to every completed video.
 		for (const [clipId, item] of items) {
 			if (item.status !== "completed" || !item.tempFilePath) continue;
-			if (this.options.isCancelled()) {
+			if (this.isCancelled()) {
 				cancelled = true;
 				break;
 			}

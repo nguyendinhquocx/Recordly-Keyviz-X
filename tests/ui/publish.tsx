@@ -48,7 +48,13 @@ function Preview() {
 	const [percentage, setPercentage] = useState(0);
 	const { t } = useI18n();
 	const [preferences] = useState(loadEditorPreferences);
-	const exportSettings = useExportSettings(preferences, [], []);
+	// Pin the incumbent full-timeline mode: this fixture covers Link flows, and
+	// a previous batch fixture on this origin may have persisted separate-clips.
+	const exportSettings = useExportSettings(
+		{ ...preferences, exportMode: "full-timeline" },
+		[],
+		[],
+	);
 	const props = {
 		t,
 		projectTitle: "Preview",
@@ -79,6 +85,17 @@ function Preview() {
 			return "synthetic-preview.mp4";
 		},
 		onRequestShareSignIn: noop,
+		batchExport: {
+			isBatchExporting: false,
+			batchProgress: null,
+			batchSummary: null,
+			batchError: null,
+			validClipCount: 0,
+			startBatchExport: async () => false,
+			cancelBatchExport: noop,
+			dismissBatchResult: noop,
+			handleStartBatchExport: async () => undefined,
+		},
 	} as unknown as ComponentProps<typeof EditorExportMenu>;
 	return (
 		<div className="flex justify-end p-12">

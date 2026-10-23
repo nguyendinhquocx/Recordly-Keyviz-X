@@ -225,5 +225,28 @@
 		"expand": "Mở rộng dòng thời gian",
 		"collapse": "Thu gọn dòng thời gian"
 	},
-	"openRecordingsFolder": "Mở thư mục bản ghi"
+	"openRecordingsFolder": "Mở thư mục bản ghi",
+	"exportMode": {
+		"title": "Đầu ra",
+		"fullTimeline": "Toàn bộ timeline",
+		"separateClips": "Từng clip riêng",
+		"gifUnsupported": "Tách clip chỉ hỗ trợ MP4. Đổi format sang MP4, hoặc giữ GIF ở chế độ Toàn bộ timeline.",
+		"separateClipsHint": "Lưu mỗi clip trên timeline thành một MP4 trong thư mục bạn chọn một lần."
+	},
+	"exportActions": {
+		"exportSeparateClips": "Xuất {{count}} clip",
+		"noValidClips": "Không có clip hợp lệ để xuất",
+		"noValidClipsHint": "Cắt timeline còn ít nhất một clip trước khi xuất."
+	},
+	"batchExport": {
+		"exporting": "Đang xuất các clip",
+		"progress": "{{current}} trên {{total}} clip",
+		"cancelledTitle": "Đã hủy xuất",
+		"partialTitle": "Xuất xong nhưng có vấn đề",
+		"completeTitle": "Đã xuất tất cả clip",
+		"resultSummary": "Đã lưu {{completed}} trên {{total}} clip.",
+		"sidecarWarning": "{{count}} clip được lưu không kèm file caption.",
+		"clipFailed": "Clip {{index}}: {{error}}",
+		"retryFailed": "Thử lại các clip lỗi"
+	}
 }

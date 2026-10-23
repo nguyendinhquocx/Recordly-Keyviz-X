@@ -41,10 +41,12 @@ export function useExportSettings(
 	const [gifFrameRate, setGifFrameRate] = useState<GifFrameRate>(preferences.gifFrameRate);
 	const [gifLoop, setGifLoop] = useState(preferences.gifLoop);
 	const [gifSizePreset, setGifSizePreset] = useState<GifSizePreset>(preferences.gifSizePreset);
+	const [exportMode, setExportMode] = useState(preferences.exportMode);
 	useEffect(() => {
 		saveEditorPreferences({
 			publishDestination,
 			includeCaptionSidecar,
+			exportMode,
 			exportQuality,
 			exportEncodingMode,
 			exportBackendPreference,
@@ -67,6 +69,7 @@ export function useExportSettings(
 		gifFrameRate,
 		gifLoop,
 		gifSizePreset,
+		exportMode,
 	]);
 
 	const captionSidecarCues = useMemo(
@@ -107,6 +110,8 @@ export function useExportSettings(
 		setGifLoop,
 		gifSizePreset,
 		setGifSizePreset,
+		exportMode,
+		setExportMode,
 		captionSidecarCues,
 	};
 }

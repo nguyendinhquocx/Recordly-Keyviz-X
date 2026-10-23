@@ -15,6 +15,7 @@ import type { useExportSettings } from "../export/useExportSettings";
 import type { useExportStatusViewModel } from "../export/useExportStatusViewModel";
 import type { useVideoEditorPresets } from "../presets/useVideoEditorPresets";
 import type { useProjectState } from "../state/useProjectState";
+import type { BatchClipExportController } from "../export/useBatchClipExport";
 import { EditorExportMenu } from "./EditorExportMenu";
 import { EditorPresetMenu } from "./EditorPresetMenu";
 
@@ -54,6 +55,9 @@ type Props = {
 	handleStartExportFromDropdown: () => void;
 	revealExportedFile: () => void;
 	exportMessage: string | null;
+	batchExport: BatchClipExportController & {
+		handleStartBatchExport: () => Promise<void>;
+	};
 	prepareExportForShare: () => Promise<string | undefined>;
 	onRequestShareSignIn: () => void;
 	shareRequestNonce: number;
@@ -92,6 +96,7 @@ export function EditorHeader(props: Props) {
 		handleStartExportFromDropdown,
 		revealExportedFile,
 		exportMessage,
+		batchExport,
 	} = props;
 	const {
 		isEditingProjectName,
@@ -240,6 +245,7 @@ export function EditorHeader(props: Props) {
 					handleStartExportFromDropdown={handleStartExportFromDropdown}
 					revealExportedFile={revealExportedFile}
 					exportMessage={exportMessage}
+					batchExport={batchExport}
 					projectPath={project.currentProjectPath}
 					projectTitle={projectDisplayName}
 					prepareExportForShare={props.prepareExportForShare}

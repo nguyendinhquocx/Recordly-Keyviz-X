@@ -225,5 +225,28 @@
 		"expand": "Expandir línea de tiempo",
 		"collapse": "Contraer línea de tiempo"
 	},
-	"openRecordingsFolder": "Abrir carpeta de grabaciones"
+	"openRecordingsFolder": "Abrir carpeta de grabaciones",
+	"exportMode": {
+		"title": "Salida",
+		"fullTimeline": "Línea de tiempo completa",
+		"separateClips": "Clips separados",
+		"gifUnsupported": "Clips separados solo exporta MP4. Cambia el formato a MP4 o mantén GIF en Línea de tiempo completa.",
+		"separateClipsHint": "Guarda cada clip de la línea de tiempo como un MP4 en la carpeta que elijas una vez."
+	},
+	"exportActions": {
+		"exportSeparateClips": "Exportar {{count}} clips",
+		"noValidClips": "No hay clips válidos para exportar",
+		"noValidClipsHint": "Recorta la línea de tiempo para conservar al menos un clip antes de exportar."
+	},
+	"batchExport": {
+		"exporting": "Exportando clips",
+		"progress": "{{current}} de {{total}} clips",
+		"cancelledTitle": "Exportación cancelada",
+		"partialTitle": "La exportación terminó con problemas",
+		"completeTitle": "Todos los clips exportados",
+		"resultSummary": "{{completed}} de {{total}} clips guardados.",
+		"sidecarWarning": "{{count}} clip(s) guardados sin archivos de subtítulos.",
+		"clipFailed": "Clip {{index}}: {{error}}",
+		"retryFailed": "Reintentar clips fallidos"
+	}
 }
