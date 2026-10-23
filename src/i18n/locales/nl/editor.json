@@ -236,7 +236,8 @@
 	"exportActions": {
 		"exportSeparateClips": "{{count}} clips exporteren",
 		"noValidClips": "Geen geldige clips om te exporteren",
-		"noValidClipsHint": "Maak de tijdlijn korter zodat er minstens één clip overblijft voordat je exporteert."
+		"noValidClipsHint": "Maak de tijdlijn korter zodat er minstens één clip overblijft voordat je exporteert.",
+		"exportSeparateClipsOne": "1 clip exporteren"
 	},
 	"batchExport": {
 		"exporting": "Clips worden geëxporteerd",

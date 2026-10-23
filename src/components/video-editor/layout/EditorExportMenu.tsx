@@ -187,13 +187,18 @@ export function EditorExportMenu(props: Props) {
 			}
 			exportActionLabel={
 				batchModeActive && !batchFormatBlocked
-					? validClipCount > 0
+					? validClipCount > 1
 						? t(
 								"editor.exportActions.exportSeparateClips",
-								"Export {count} clips",
+								"Export {{count}} clips",
 								{ count: validClipCount },
 							)
-						: t("editor.exportActions.noValidClips", "No valid clips to export")
+						: validClipCount === 1
+							? t(
+									"editor.exportActions.exportSeparateClipsOne",
+									"Export 1 clip",
+								)
+							: t("editor.exportActions.noValidClips", "No valid clips to export")
 					: undefined
 			}
 			exportActionDisabled={batchModeActive && !batchFormatBlocked && validClipCount === 0}
@@ -238,8 +243,9 @@ export function EditorExportMenu(props: Props) {
 					align="end"
 					sideOffset={10}
 					className="w-[360px] max-h-none overflow-hidden p-0"
-					isKeyboardDismissDisabled={shareBusy}
-					shouldCloseOnInteractOutside={() => !shareBusy}
+					// Batch commits must not be dismissible mid-flight (UX contract).
+					isKeyboardDismissDisabled={shareBusy || isBatchExporting}
+					shouldCloseOnInteractOutside={() => !shareBusy && !isBatchExporting}
 				>
 					<motion.div
 						initial={false}
@@ -481,7 +487,7 @@ export function EditorExportMenu(props: Props) {
 													)}
 												</p>
 												<p className="text-xs text-muted-foreground" aria-live="polite">
-													{t("editor.batchExport.progress", "{current} of {total} clips", {
+													{t("editor.batchExport.progress", "{{current}} of {{total}} clips", {
 														current: batchProgress?.current ?? 0,
 														total: batchProgress?.total ?? 0,
 													})}
@@ -537,7 +543,7 @@ export function EditorExportMenu(props: Props) {
 											<p className="mt-1 text-[11px] text-amber-500/80">
 												{t(
 													"editor.batchExport.sidecarWarning",
-													"{count} clip(s) saved without caption files.",
+													"{{count}} clip(s) saved without caption files.",
 													{ count: batchSummary.sidecarWarningCount },
 												)}
 											</p>
@@ -553,7 +559,7 @@ export function EditorExportMenu(props: Props) {
 													key={item.clipId}
 													className="mt-1 select-text break-words text-[11px] text-muted-foreground/80"
 												>
-													{t("editor.batchExport.clipFailed", "Clip {index}: {error}", {
+													{t("editor.batchExport.clipFailed", "Clip {{index}}: {{error}}", {
 														index: item.clipIndex,
 														error: item.error ?? "",
 													})}

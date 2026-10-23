@@ -236,7 +236,8 @@
 	"exportActions": {
 		"exportSeparateClips": "导出 {{count}} 个剪辑",
 		"noValidClips": "没有可导出的有效剪辑",
-		"noValidClipsHint": "导出前请修剪时间线，至少保留一个剪辑。"
+		"noValidClipsHint": "导出前请修剪时间线，至少保留一个剪辑。",
+		"exportSeparateClipsOne": "导出 1 个剪辑"
 	},
 	"batchExport": {
 		"exporting": "正在导出剪辑",

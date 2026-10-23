@@ -236,7 +236,8 @@
 	"exportActions": {
 		"exportSeparateClips": "Export {{count}} clips",
 		"noValidClips": "No valid clips to export",
-		"noValidClipsHint": "Trim the timeline to keep at least one clip before exporting."
+		"noValidClipsHint": "Trim the timeline to keep at least one clip before exporting.",
+		"exportSeparateClipsOne": "Export 1 clip"
 	},
 	"batchExport": {
 		"exporting": "Exporting clips",

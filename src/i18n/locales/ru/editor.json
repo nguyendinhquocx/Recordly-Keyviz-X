@@ -236,7 +236,8 @@
 	"exportActions": {
 		"exportSeparateClips": "Экспортировать клипы ({{count}})",
 		"noValidClips": "Нет допустимых клипов для экспорта",
-		"noValidClipsHint": "Обрежьте таймлайн, оставив хотя бы один клип, перед экспортом."
+		"noValidClipsHint": "Обрежьте таймлайн, оставив хотя бы один клип, перед экспортом.",
+		"exportSeparateClipsOne": "Экспортировать 1 клип"
 	},
 	"batchExport": {
 		"exporting": "Экспорт клипов",

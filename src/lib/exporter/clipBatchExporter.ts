@@ -194,7 +194,15 @@ export class ClipBatchExporter {
 			if (!current) return;
 			sinkState.current = null;
 			if (current.localFrameCount === 0) {
-				// A plan whose grid owns no frames produces no file.
+				// A plan whose grid owns no frames (clip shorter than one output
+				// frame) produces no file — surface it instead of swallowing it.
+				const message = "Clip is shorter than one output frame at this FPS";
+				items.set(current.plan.clipId, {
+					plan: current.plan,
+					status: "render-error",
+					error: message,
+				});
+				this.options.onClipResult?.(current.plan, "render-error", { error: message });
 				return;
 			}
 			const finished = await current.sink.finish();
@@ -265,6 +273,16 @@ export class ClipBatchExporter {
 
 					if (videoFrame === null) {
 						// Gap frame on the global grid: owned by no clip, never encoded.
+						// It still advances the shared renderer state exactly like a
+						// full-timeline export does, so a clip starting after a gap
+						// begins from the same camera/cursor state.
+						await this.ports.renderer.renderFrame(
+							null,
+							(currentGlobalFrame / frameRate) * 1_000_000,
+							0,
+							frameDurationUs,
+							(currentGlobalFrame / frameRate) * 1_000_000,
+						);
 						return;
 					}
 					if (this.isCancelled()) {
@@ -291,17 +309,33 @@ export class ClipBatchExporter {
 					if (!sinkState.current || sinkState.current.plan.clipId !== plan.clipId) {
 						// Rotate the MP4 output sink at the clip boundary. The renderer
 						// session continues untouched — camera/cursor/zoom state survives.
-						await finishActiveSink();
-						if (this.isCancelled()) {
-							cancelled = true;
+						try {
+							await finishActiveSink();
+							if (this.isCancelled()) {
+								cancelled = true;
+								videoFrame.close();
+								return;
+							}
+							sinkState.current = {
+								plan,
+								sink: await this.ports.createSink(),
+								localFrameCount: 0,
+							};
+						} catch (rotationError) {
 							videoFrame.close();
+							const message =
+								rotationError instanceof Error
+									? rotationError.message
+									: String(rotationError);
+							items.set(plan.clipId, {
+								plan,
+								status: "render-error",
+								error: message,
+							});
+							this.options.onClipResult?.(plan, "render-error", { error: message });
+							skipUntilClipId = plan.clipId;
 							return;
 						}
-						sinkState.current = {
-							plan,
-							sink: await this.ports.createSink(),
-							localFrameCount: 0,
-						};
 						this.options.onClipStart?.(plan);
 					}
 
@@ -423,9 +457,11 @@ export class ClipBatchExporter {
 				if (!wav) continue;
 				const muxed = await this.ports.muxClipAudio(item.tempFilePath, wav, item.plan);
 				if (!muxed.success || !muxed.tempPath) {
+					// The video-only temp lacks the edited audio track, so it must not
+					// be retained for destination retry — re-render instead.
 					items.set(clipId, {
 						...item,
-						status: "write-error",
+						status: "render-error",
 						error: muxed.error || "Failed to mux clip audio",
 					});
 				} else {
@@ -434,7 +470,7 @@ export class ClipBatchExporter {
 			} catch (error) {
 				items.set(clipId, {
 					...item,
-					status: "write-error",
+					status: "render-error",
 					error: error instanceof Error ? error.message : String(error),
 				});
 			}
@@ -459,6 +495,24 @@ export function captureBatchVideoFrame(
 		duration: durationUs,
 		colorSpace: EXPORT_CANVAS_COLOR_SPACE,
 	});
+}
+
+/**
+ * Rebase a plan's imported audio overlays onto the clip-local timeline while
+ * keeping their original file positions. A region that started before the
+ * clip keeps a NEGATIVE startMs: the offline audio renderer turns that into a
+ * buffer offset, so a clipped overlay never restarts its file at zero.
+ */
+export function buildClipLocalAudioRegions(plan: ClipExportPlan): AudioRegion[] {
+	return plan.audioOverlays.map((overlay) => ({
+		id: overlay.regionId,
+		startMs: overlay.outputStartMs - overlay.sourceOffsetMs,
+		endMs: overlay.outputEndMs - overlay.sourceOffsetMs,
+		audioPath: overlay.audioPath,
+		volume: overlay.volume,
+		...(overlay.normalize === undefined ? {} : { normalize: overlay.normalize }),
+		...(overlay.trackIndex === undefined ? {} : { trackIndex: overlay.trackIndex }),
+	}));
 }
 
 /**
@@ -742,7 +796,13 @@ export async function createClipBatchRenderPorts(
 			};
 		},
 		renderClipAudioWav: async (plan) => {
-			if (!config.hasAudio) return null;
+			if (
+				!config.hasAudio &&
+				(config.sourceAudioFallbackPaths ?? []).length === 0 &&
+				plan.audioOverlays.length === 0
+			) {
+				return null;
+			}
 			const audioProcessor = new AudioProcessor();
 			// Rebase the clip and its imported overlays onto a clip-local timeline:
 			// the clip plays from output zero, overlays keep their file offsets.
@@ -754,15 +814,7 @@ export async function createClipBatchRenderPorts(
 				speed: plan.speed,
 				...(plan.muted ? { muted: true } : {}),
 			};
-			const localAudioRegions: AudioRegion[] = plan.audioOverlays.map((overlay) => ({
-				id: overlay.regionId,
-				startMs: overlay.outputStartMs,
-				endMs: overlay.outputEndMs,
-				audioPath: overlay.audioPath,
-				volume: overlay.volume,
-				...(overlay.normalize === undefined ? {} : { normalize: overlay.normalize }),
-				...(overlay.trackIndex === undefined ? {} : { trackIndex: overlay.trackIndex }),
-			}));
+			const localAudioRegions = buildClipLocalAudioRegions(plan);
 			return audioProcessor.renderEditedAudioTrack(
 				config.videoUrl,
 				undefined,

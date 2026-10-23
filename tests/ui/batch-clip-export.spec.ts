@@ -68,6 +68,15 @@ test("zero valid clips disables the batch action without opening a picker", asyn
 	await expect(page.getByText(/Trim the timeline/i)).toBeVisible();
 });
 
+test("one valid clip CTA stays singular", async ({ page }) => {
+	await openPublish(page, "?clips=1");
+	await page
+		.getByRole("button", { name: "Fixture separate clips" })
+		.evaluate((button: HTMLButtonElement) => button.click());
+	await page.getByRole("row", { name: "Separate clips" }).click();
+	await expect(page.getByRole("button", { name: "Export 1 clip", exact: true })).toBeVisible();
+});
+
 test("batch progress reports clip N of total and supports cancel", async ({ page }) => {
 	await openPublish(page, "?state=progress");
 	await expect(page.getByRole("status")).toHaveText("Exporting clips");

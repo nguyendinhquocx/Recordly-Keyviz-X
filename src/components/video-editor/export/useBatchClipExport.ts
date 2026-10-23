@@ -84,6 +84,8 @@ export interface UseBatchClipExportInput {
 		sidecar?: { format: "srt" | "vtt" | "both"; cues: Array<{ startMs: number; endMs: number; text: string }> };
 	}) => Promise<{ success: boolean; path?: string; sidecarWarning?: string | null; errorKind?: string; error?: string }>;
 	cancelSession: (batchId: string) => Promise<void>;
+	/** Best-effort removal of a still-owned renderer temp (cancel/abort path). */
+	discardTemp: (tempPath: string) => Promise<void>;
 }
 
 export type BatchClipExportController = ReturnType<typeof useBatchClipExport>;
@@ -170,12 +172,18 @@ export function useBatchClipExport(input: UseBatchClipExportInput) {
 				});
 			}
 			cancelRef.current = { cancelled: false };
+			const totalSteps = plans.length + Object.keys(retainedTemps).length;
 			setIsBatchExporting(true);
-			setBatchProgress({ current: 0, total: plans.length + Object.keys(retainedTemps).length });
+			setBatchProgress({ current: 0, total: totalSteps });
 
-			let completedFiles = 0;
-			const reportProgress = () =>
-				setBatchProgress({ current: completedFiles, total: plans.length });
+			// Progress counts every finished step (rendered clip or re-committed
+			// retained temp) so N/total moves through the whole batch, not just
+			// the fast commit phase at the end.
+			let progressDone = 0;
+			const reportProgress = () => {
+				progressDone += 1;
+				setBatchProgress({ current: Math.min(progressDone, totalSteps), total: totalSteps });
+			};
 
 			try {
 				const batch = await inputRef.current.createBatch(plans, settings, {
@@ -190,11 +198,11 @@ export function useBatchClipExport(input: UseBatchClipExportInput) {
 							item.outputPath = info?.outputPath;
 							item.error = info?.error;
 						}
+						if (status === "completed") {
+							reportProgress();
+						}
 					},
-					onProgress: (completed, total) => {
-						completedFiles = completed;
-						setBatchProgress({ current: completed, total });
-					},
+					onProgress: () => undefined,
 					isCancelled: () => cancelRef.current.cancelled,
 				});
 
@@ -234,10 +242,11 @@ export function useBatchClipExport(input: UseBatchClipExportInput) {
 							item.status = "completed";
 							item.outputPath = commit.path;
 							item.sidecarWarning = Boolean(commit.sidecarWarning);
-							completedFiles += 1;
-							reportProgress();
+							// Already counted as progress when its render completed.
 						} else if (commit.errorKind === "cancelled") {
 							item.status = "cancelled";
+							// Publication never happened; release the owned temp now.
+							void inputRef.current.discardTemp(entry.tempFilePath);
 						} else {
 							item.status = "write-error";
 							item.error = commit.error || "Could not save the clip file";
@@ -297,7 +306,6 @@ export function useBatchClipExport(input: UseBatchClipExportInput) {
 						item.outputPath = commit.path;
 						item.sidecarWarning = Boolean(commit.sidecarWarning);
 						item.retainedTempPath = undefined;
-						completedFiles += 1;
 						reportProgress();
 					} else if (commit.errorKind === "cancelled") {
 						item.status = "cancelled";
@@ -329,6 +337,15 @@ export function useBatchClipExport(input: UseBatchClipExportInput) {
 				setIsBatchExporting(false);
 				if (cancelRef.current.cancelled) {
 					void inputRef.current.cancelSession(batchId);
+				}
+				// Batch-owned temps that never reached publication and are not
+				// retained for destination retry must not leak on disk.
+				for (const item of items) {
+					if (item.status === "cancelled" && item.retainedTempPath) {
+						const temp = item.retainedTempPath;
+						item.retainedTempPath = undefined;
+						void inputRef.current.discardTemp(temp);
+					}
 				}
 			}
 		},

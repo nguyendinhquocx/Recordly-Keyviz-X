@@ -236,7 +236,8 @@
 	"exportActions": {
 		"exportSeparateClips": "Xuất {{count}} clip",
 		"noValidClips": "Không có clip hợp lệ để xuất",
-		"noValidClipsHint": "Cắt timeline còn ít nhất một clip trước khi xuất."
+		"noValidClipsHint": "Cắt timeline còn ít nhất một clip trước khi xuất.",
+		"exportSeparateClipsOne": "Xuất 1 clip"
 	},
 	"batchExport": {
 		"exporting": "Đang xuất các clip",

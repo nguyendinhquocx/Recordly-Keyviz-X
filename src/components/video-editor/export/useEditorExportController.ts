@@ -218,12 +218,18 @@ export function useEditorExportController(input: Input) {
 		cancelSession: async (batchId) => {
 			await window.electronAPI?.cancelBatchExportSession?.(batchId);
 		},
+		discardTemp: async (tempPath) => {
+			await window.electronAPI?.discardExportedTemp?.(tempPath);
+		},
 	});
 
-	const handleStartBatchExport = async () => {
+	const handleStartBatchExport = async (retry?: {
+		onlyClipIds: string[];
+		retainedTemps: Record<string, string>;
+	}) => {
 		const resolvedSettings = dialogActions.resolveCurrentSettings("mp4");
 		if (!resolvedSettings) return;
-		await batch.startBatchExport(resolvedSettings, getSourceBaseName(input.videoPath));
+		await batch.startBatchExport(resolvedSettings, getSourceBaseName(input.videoPath), retry);
 	};
 
 	useSmokeExportAutomation({

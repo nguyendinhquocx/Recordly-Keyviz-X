@@ -49,6 +49,7 @@ interface BatchExportSession {
 	sourceBaseName: string;
 	cancelled: boolean;
 	reservedBases: Set<string>;
+	committedCount: number;
 }
 
 const batchExportSessions = new Map<string, BatchExportSession>();
@@ -114,23 +115,39 @@ export async function commitFileNoClobber(
 		if (code === "EEXIST") {
 			throw new BatchNameCollisionError();
 		}
-		if (code !== "EXDEV") {
+		// EXDEV: cross-volume. EPERM/ENOTSUP/EOPNOTSUPP: filesystem without
+		// hardlinks (exFAT/FAT32 USB drives). Both take the staging fallback.
+		if (code !== "EXDEV" && code !== "EPERM" && code !== "ENOTSUP" && code !== "EOPNOTSUPP") {
 			throw error;
 		}
 	}
 
-	// Cross-volume: stage a copy inside the destination directory (same volume
-	// as the destination) and hard-link the staged bytes into place.
+	// Stage a copy inside the destination directory and publish it without
+	// replacing: hard-link when the volume supports it, otherwise COPYFILE_EXCL
+	// (never replaces; the staged temp keeps a partial copy invisible).
 	const stagingPath = `${destinationPath}.recordly-batch-${randomUUID()}`;
 	try {
 		await fs.copyFile(sourcePath, stagingPath, fs.constants.COPYFILE_EXCL);
 		try {
 			await fs.link(stagingPath, destinationPath);
+			return;
 		} catch (linkError) {
-			if ((linkError as NodeJS.ErrnoException).code === "EEXIST") {
+			const linkCode = (linkError as NodeJS.ErrnoException).code;
+			if (linkCode === "EEXIST") {
 				throw new BatchNameCollisionError();
 			}
-			throw linkError;
+			if (linkCode !== "EPERM" && linkCode !== "ENOTSUP" && linkCode !== "EOPNOTSUPP") {
+				throw linkError;
+			}
+			try {
+				// No-hardlink volume: exclusive copy is the no-clobber publication.
+				await fs.copyFile(stagingPath, destinationPath, fs.constants.COPYFILE_EXCL);
+			} catch (copyError) {
+				if ((copyError as NodeJS.ErrnoException).code === "EEXIST") {
+					throw new BatchNameCollisionError();
+				}
+				throw copyError;
+			}
 		}
 	} finally {
 		await fs.rm(stagingPath, { force: true }).catch(() => undefined);
@@ -310,6 +327,13 @@ export async function commitBatchClip(
 		}
 	}
 
+	// The session record lives only while clips are still expected; a fully
+	// committed batch is closed so main-process state cannot leak.
+	session.committedCount += 1;
+	if (session.committedCount >= session.clipCount) {
+		batchExportSessions.delete(session.id);
+	}
+
 	return {
 		success: true,
 		path: committedVideoPath,
@@ -352,6 +376,7 @@ export function registerBatchExportHandlers(): void {
 				sourceBaseName,
 				cancelled: false,
 				reservedBases: new Set<string>(),
+				committedCount: 0,
 			};
 			batchExportSessions.set(session.id, session);
 			return { success: true, batchId: session.id, directoryPath: session.directory };
@@ -361,7 +386,13 @@ export function registerBatchExportHandlers(): void {
 	ipcMain.handle(
 		"batch-export-commit",
 		async (_event, payload: CommitBatchClipInput) => {
-			if (typeof payload?.batchId !== "string" || typeof payload?.tempPath !== "string") {
+			const clipIndex = Number(payload?.clipIndex);
+			if (
+				typeof payload?.batchId !== "string" ||
+				typeof payload?.tempPath !== "string" ||
+				!Number.isInteger(clipIndex) ||
+				clipIndex < 1
+			) {
 				return {
 					success: false,
 					errorKind: "write" as BatchExportErrorKind,
@@ -372,7 +403,7 @@ export function registerBatchExportHandlers(): void {
 			return commitBatchClip({
 				batchId: payload.batchId,
 				tempPath: payload.tempPath,
-				clipIndex: Number(payload.clipIndex),
+				clipIndex,
 				captionSidecar: payload.captionSidecar ?? null,
 			});
 		},

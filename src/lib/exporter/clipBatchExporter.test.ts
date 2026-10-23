@@ -392,3 +392,60 @@ describe("ClipBatchExporter sidecar payloads", () => {
 		]);
 	});
 });
+
+describe("clip-local audio rebase", () => {
+	it("keeps the original file offset via a negative local start", async () => {
+		const { buildClipLocalAudioRegions } = await import("./clipBatchExporter");
+		const clips: ClipRegion[] = [
+			{ id: "a", startMs: 0, endMs: 1000, speed: 1 },
+			{ id: "b", startMs: 1000, endMs: 2500, speed: 1 },
+		];
+		const { plans } = buildClipExportPlans({
+			clips,
+			sourceDurationMs: 10_000,
+			fps: FPS,
+			audioRegions: [
+				{
+					id: "music",
+					startMs: 500,
+					endMs: 4000,
+					audioPath: "music.mp3",
+					volume: 0.7,
+				},
+			],
+		});
+		const [regionA] = buildClipLocalAudioRegions(plans[0]);
+		// Overlay starts mid-clip: local start equals the overlap position.
+		expect(regionA).toMatchObject({ startMs: 500, endMs: 1000 });
+		const [regionB] = buildClipLocalAudioRegions(plans[1]);
+		// Overlay started BEFORE clip b: the local start is negative, which the
+		// offline renderer turns into a buffer offset (never restarts at zero).
+		// Overlap [1000..2500) shifted by offset 500 -> local [-500..1000);
+		// the renderer clips it to the clip's [0..1500) output window.
+		expect(regionB.startMs).toBe(-500);
+		expect(regionB.endMs).toBe(1000);
+	});
+});
+
+describe("gap frame state continuity", () => {
+	it("advances the shared renderer across gap frames without encoding them", async () => {
+		const clips: ClipRegion[] = [
+			{ id: "a", startMs: 0, endMs: 1000, speed: 1 },
+			{ id: "b", startMs: 1500, endMs: 2000, speed: 1 },
+		];
+		const plans = makePlans(clips);
+		const { ports, renderCalls, sinks } = createPorts({ totalFrames: 60, clips });
+		const result = await buildBatch(ports, plans, clips).exportBatch();
+
+		expect(result.items.map((item) => item.status)).toEqual(["completed", "completed"]);
+		// Gap [1000..1500ms) = frames 30..44: rendered for state continuity...
+		const gapRenderCalls = renderCalls.filter(
+			(call) => call.globalFrame >= 30 && call.globalFrame < 45,
+		);
+		expect(gapRenderCalls).toHaveLength(15);
+		expect(gapRenderCalls[0].backgroundTimelineTimestampUs).toBeCloseTo(1_000_000, 6);
+		// ...but never encoded.
+		expect(sinks[0].frames).toHaveLength(30);
+		expect(sinks[1].frames).toHaveLength(15);
+	});
+});

@@ -236,7 +236,8 @@
 	"exportActions": {
 		"exportSeparateClips": "클립 {{count}}개 내보내기",
 		"noValidClips": "내보낼 유효한 클립이 없습니다",
-		"noValidClipsHint": "내보내기 전에 타임라인에서 최소 한 개의 클립을 남겨두세요."
+		"noValidClipsHint": "내보내기 전에 타임라인에서 최소 한 개의 클립을 남겨두세요.",
+		"exportSeparateClipsOne": "클립 1개 내보내기"
 	},
 	"batchExport": {
 		"exporting": "클립 내보내는 중",
