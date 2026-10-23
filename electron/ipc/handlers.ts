@@ -1,6 +1,7 @@
 import { BrowserWindow } from "electron";
 import { registerAnnouncementHandlers } from "./register/announcements";
 import { registerAssetHandlers } from "./register/assets";
+import { registerBatchExportHandlers } from "./register/batchExport";
 import { registerCaptionHandlers } from "./register/captions";
 import { registerCloudShareHandlers } from "./register/cloudShare";
 import { registerExportHandlers } from "./register/export";
@@ -70,6 +71,7 @@ export function registerIpcHandlers(
 	registerAnnouncementHandlers();
 	registerAssetHandlers();
 	registerExportHandlers();
+	registerBatchExportHandlers();
 	registerCaptionHandlers();
 	registerCloudShareHandlers();
 	registerProjectHandlers();

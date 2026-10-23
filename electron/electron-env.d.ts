@@ -583,6 +583,43 @@ interface Window {
 			error?: string;
 		}>;
 		discardExportedTemp: (tempPath: string) => Promise<{ success: boolean; error?: string }>;
+		openBatchExportSession: (payload: {
+			clipCount: number;
+			sourceBaseName: string;
+		}) => Promise<{
+			success: boolean;
+			batchId?: string;
+			directoryPath?: string;
+			canceled?: boolean;
+			error?: string;
+		}>;
+		commitBatchExportClip: (payload: {
+			batchId: string;
+			tempPath: string;
+			clipIndex: number;
+			captionSidecar?: {
+				format: "srt" | "vtt" | "both";
+				cues: Array<{
+					startMs: number;
+					endMs: number;
+					text: string;
+				}>;
+			};
+		}) => Promise<
+			| {
+					success: true;
+					path: string;
+					sidecarWarning: string | null;
+					canceled: false;
+			  }
+			| {
+					success: false;
+					errorKind: "write" | "cancelled";
+					error: string;
+					canceled: false;
+			  }
+		>;
+		cancelBatchExportSession: (batchId: string) => Promise<{ success: boolean }>;
 		getVideoAudioFallbackPaths: (videoPath: string) => Promise<{
 			success: boolean;
 			paths: string[];

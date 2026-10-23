@@ -507,6 +507,23 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	discardExportedTemp: (tempPath: string) => {
 		return ipcRenderer.invoke("discard-exported-temp", tempPath);
 	},
+	openBatchExportSession: (payload: { clipCount: number; sourceBaseName: string }) => {
+		return ipcRenderer.invoke("batch-export-open", payload);
+	},
+	commitBatchExportClip: (payload: {
+		batchId: string;
+		tempPath: string;
+		clipIndex: number;
+		captionSidecar?: {
+			format: "srt" | "vtt" | "both";
+			cues: Array<{ startMs: number; endMs: number; text: string }>;
+		};
+	}) => {
+		return ipcRenderer.invoke("batch-export-commit", payload);
+	},
+	cancelBatchExportSession: (batchId: string) => {
+		return ipcRenderer.invoke("batch-export-cancel", batchId);
+	},
 	getVideoAudioFallbackPaths: (videoPath: string) => {
 		return ipcRenderer.invoke("get-video-audio-fallback-paths", videoPath);
 	},
