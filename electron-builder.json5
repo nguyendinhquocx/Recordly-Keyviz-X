@@ -52,8 +52,8 @@
   "publish": [
     {
       "provider": "github",
-      "owner": "webadderall",
-      "repo": "Recordly",
+      "owner": "nguyendinhquocx",
+      "repo": "Recordly-Keyviz-X",
       "tagNamePrefix": "v",
       "publishAutoUpdate": true
     }

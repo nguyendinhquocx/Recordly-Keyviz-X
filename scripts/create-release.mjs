@@ -3,7 +3,7 @@ import fs from "node:fs";
 
 function printUsage() {
 	console.error(`Usage:
-  node scripts/create-release.mjs --tag <tag> [--title <title>] [--notes <text> | --notes-file <path>] [--prerelease] [--draft]
+  node scripts/create-release.mjs --tag <tag> [--repo <owner/repo>] [--title <title>] [--notes <text> | --notes-file <path>] [--prerelease] [--draft]
 
 Examples:
   node scripts/create-release.mjs --tag v1.2.0-beta.2 --title "v1.2.0 beta-2" --prerelease --notes-file ./release-notes.md
@@ -14,6 +14,7 @@ Examples:
 function parseArgs(argv) {
 	const parsed = {
 		tag: "",
+		repo: "",
 		title: "",
 		notes: "",
 		notesFile: "",
@@ -26,6 +27,9 @@ function parseArgs(argv) {
 		switch (arg) {
 			case "--tag":
 				parsed.tag = argv[++i] ?? "";
+				break;
+			case "--repo":
+				parsed.repo = argv[++i] ?? "";
 				break;
 			case "--title":
 				parsed.title = argv[++i] ?? "";
@@ -71,6 +75,33 @@ function loadNotes({ notes, notesFile }) {
 	return notes;
 }
 
+function resolveGitHubRepo(explicitRepo) {
+	if (explicitRepo) {
+		if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(explicitRepo)) {
+			throw new Error("Invalid --repo value; expected <owner>/<repo>.");
+		}
+		return explicitRepo;
+	}
+
+	let remoteUrl = "";
+	try {
+		remoteUrl = execFileSync("git", ["remote", "get-url", "origin"], {
+			encoding: "utf8",
+		}).trim();
+	} catch {
+		throw new Error(
+			"Could not resolve the GitHub repository from origin. Pass --repo <owner/repo>.",
+		);
+	}
+
+	const match = remoteUrl.match(/github\.com[:/]([^/]+\/[^/]+?)(?:\.git)?$/i);
+	const repo = match?.[1]?.replace(/\.git$/i, "");
+	if (!repo) {
+		throw new Error("Origin is not a GitHub remote. Pass --repo <owner/repo>.");
+	}
+	return repo;
+}
+
 function resolveGhBinary() {
 	const candidates = [
 		process.env.GH_BIN,
@@ -97,7 +128,16 @@ try {
 	const options = parseArgs(process.argv.slice(2));
 	const notes = loadNotes(options).trim();
 	const ghBinary = resolveGhBinary();
-	const commandArgs = ["release", "create", options.tag, "--verify-tag", "--generate-notes"];
+	const repo = resolveGitHubRepo(options.repo);
+	const commandArgs = [
+		"release",
+		"create",
+		options.tag,
+		"--repo",
+		repo,
+		"--verify-tag",
+		"--generate-notes",
+	];
 
 	if (options.title) {
 		commandArgs.push("--title", options.title);
