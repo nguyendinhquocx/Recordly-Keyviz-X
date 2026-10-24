@@ -3,11 +3,11 @@ artifact_type: "completed-spec"
 spec_id: "SPEC-2026-10-12-recordly-batch-clip-export"
 status: "archived"
 title: "Batch Export Timeline Clips as Separate MP4 Files"
-archived_at: "2026-10-24T13:18:16+07:00"
+archived_at: "2026-10-24T13:28:27+07:00"
 source_file: "SPEC-2026-10-12-recordly-batch-clip-export.md"
 source_sha256: "bbdfc794e97e8244e84c8c038220fe126d3d9c0c1b7f171fb75e666146978744"
-implementation_ref: "52ffac17d397e8e068e0945952640bb762806a80"
-working_tree: "dirty"
+implementation_ref: "434431c32bde7b797682347069f60ab58c7dfde8"
+working_tree: "clean"
 related_paths: ["src/components/video-editor/export/clipExportPlan.ts", "src/lib/exporter/clipBatchExporter.ts", "electron/ipc/register/batchExport.ts", "src/components/video-editor/export/useBatchClipExport.ts", "src/components/video-editor/layout/EditorExportMenu.tsx", "tests/ui/batch-clip-parity.spec.ts"]
 ---
 
