@@ -248,6 +248,13 @@
 		"resultSummary": "{{completed}} de {{total}} clips guardados.",
 		"sidecarWarning": "{{count}} clip(s) guardados sin archivos de subtítulos.",
 		"clipFailed": "Clip {{index}}: {{error}}",
-		"retryFailed": "Reintentar clips fallidos"
+		"retryFailed": "Reintentar clips fallidos",
+		"skippedSummary": "Se omitieron {{count}} clips no válidos.",
+		"clipSkipped": "Clip {{index}} ({{id}}): {{reason}}",
+		"skipReasonInvalidBounds": "Límites de línea de tiempo no válidos",
+		"skipReasonInvalidSpeed": "Velocidad de reproducción no válida",
+		"skipReasonOutsideSource": "El rango de origen está fuera de la grabación",
+		"sidecarClipWarning": "Aviso del archivo de subtítulos del clip {{index}}: {{message}}",
+		"notPublishedAfterWriteFailure": "No se guardó porque falló la escritura de un clip anterior"
 	}
 }

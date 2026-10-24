@@ -248,6 +248,13 @@
 		"resultSummary": "已儲存 {{completed}} / {{total}} 個片段。",
 		"sidecarWarning": "{{count}} 個片段儲存時缺少字幕檔。",
 		"clipFailed": "片段 {{index}}：{{error}}",
-		"retryFailed": "重試失敗的片段"
+		"retryFailed": "重試失敗的片段",
+		"skippedSummary": "已略過 {{count}} 個無效片段。",
+		"clipSkipped": "片段 {{index}}（{{id}}）：{{reason}}",
+		"skipReasonInvalidBounds": "時間軸邊界無效",
+		"skipReasonInvalidSpeed": "播放速度無效",
+		"skipReasonOutsideSource": "來源區間超出錄影範圍",
+		"sidecarClipWarning": "片段 {{index}} 字幕檔警告：{{message}}",
+		"notPublishedAfterWriteFailure": "因前一個片段儲存失敗，未發布此片段"
 	}
 }

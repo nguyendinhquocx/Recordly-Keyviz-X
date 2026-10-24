@@ -248,6 +248,13 @@
 		"resultSummary": "{{completed}} von {{total}} Clips gespeichert.",
 		"sidecarWarning": "{{count}} Clip(s) ohne Untertiteldateien gespeichert.",
 		"clipFailed": "Clip {{index}}: {{error}}",
-		"retryFailed": "Fehlgeschlagene Clips erneut versuchen"
+		"retryFailed": "Fehlgeschlagene Clips erneut versuchen",
+		"skippedSummary": "{{count}} ungültige Clips übersprungen.",
+		"clipSkipped": "Clip {{index}} ({{id}}): {{reason}}",
+		"skipReasonInvalidBounds": "Ungültige Timeline-Grenzen",
+		"skipReasonInvalidSpeed": "Ungültige Wiedergabegeschwindigkeit",
+		"skipReasonOutsideSource": "Quellbereich liegt außerhalb der Aufnahme",
+		"sidecarClipWarning": "Warnung zur Untertiteldatei von Clip {{index}}: {{message}}",
+		"notPublishedAfterWriteFailure": "Nicht gespeichert, da ein vorheriger Clip nicht geschrieben werden konnte"
 	}
 }

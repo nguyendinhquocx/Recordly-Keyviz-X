@@ -248,6 +248,13 @@
 		"resultSummary": "Đã lưu {{completed}} trên {{total}} clip.",
 		"sidecarWarning": "{{count}} clip được lưu không kèm file caption.",
 		"clipFailed": "Clip {{index}}: {{error}}",
-		"retryFailed": "Thử lại các clip lỗi"
+		"retryFailed": "Thử lại các clip lỗi",
+		"skippedSummary": "Đã bỏ qua {{count}} clip không hợp lệ.",
+		"clipSkipped": "Clip {{index}} ({{id}}): {{reason}}",
+		"skipReasonInvalidBounds": "Mốc timeline không hợp lệ",
+		"skipReasonInvalidSpeed": "Tốc độ phát không hợp lệ",
+		"skipReasonOutsideSource": "Đoạn nguồn nằm ngoài bản ghi",
+		"sidecarClipWarning": "Cảnh báo file caption clip {{index}}: {{message}}",
+		"notPublishedAfterWriteFailure": "Chưa lưu vì clip trước đó ghi file thất bại"
 	}
 }

@@ -248,6 +248,13 @@
 		"resultSummary": "{{completed}} of {{total}} clips saved.",
 		"sidecarWarning": "{{count}} clip(s) saved without caption files.",
 		"clipFailed": "Clip {{index}}: {{error}}",
-		"retryFailed": "Retry failed clips"
+		"retryFailed": "Retry failed clips",
+		"skippedSummary": "Skipped {{count}} invalid clip(s).",
+		"clipSkipped": "Clip {{index}} ({{id}}): {{reason}}",
+		"skipReasonInvalidBounds": "Invalid timeline bounds",
+		"skipReasonInvalidSpeed": "Invalid playback speed",
+		"skipReasonOutsideSource": "Source range is outside the recording",
+		"sidecarClipWarning": "Clip {{index}} caption sidecar warning: {{message}}",
+		"notPublishedAfterWriteFailure": "Not published because an earlier clip failed to save"
 	}
 }

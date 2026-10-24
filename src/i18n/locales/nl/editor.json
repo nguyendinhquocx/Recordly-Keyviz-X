@@ -248,6 +248,13 @@
 		"resultSummary": "{{completed}} van {{total}} clips opgeslagen.",
 		"sidecarWarning": "{{count}} clip(s) opgeslagen zonder ondertitelbestanden.",
 		"clipFailed": "Clip {{index}}: {{error}}",
-		"retryFailed": "Mislukte clips opnieuw proberen"
+		"retryFailed": "Mislukte clips opnieuw proberen",
+		"skippedSummary": "{{count}} ongeldige clips overgeslagen.",
+		"clipSkipped": "Clip {{index}} ({{id}}): {{reason}}",
+		"skipReasonInvalidBounds": "Ongeldige tijdlijnbegrenzingen",
+		"skipReasonInvalidSpeed": "Ongeldige afspeelsnelheid",
+		"skipReasonOutsideSource": "Bronbereik valt buiten de opname",
+		"sidecarClipWarning": "Waarschuwing ondertitelbestand clip {{index}}: {{message}}",
+		"notPublishedAfterWriteFailure": "Niet gepubliceerd omdat een eerdere clip niet kon worden opgeslagen"
 	}
 }

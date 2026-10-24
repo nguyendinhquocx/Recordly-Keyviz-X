@@ -599,11 +599,7 @@ interface Window {
 			clipIndex: number;
 			captionSidecar?: {
 				format: "srt" | "vtt" | "both";
-				cues: Array<{
-					startMs: number;
-					endMs: number;
-					text: string;
-				}>;
+				cues: Array<{ startMs: number; endMs: number; text: string }>;
 			};
 		}) => Promise<
 			| {
@@ -620,6 +616,7 @@ interface Window {
 			  }
 		>;
 		cancelBatchExportSession: (batchId: string) => Promise<{ success: boolean }>;
+		closeBatchExportSession: (batchId: string) => Promise<{ success: boolean; error?: string }>;
 		getVideoAudioFallbackPaths: (videoPath: string) => Promise<{
 			success: boolean;
 			paths: string[];

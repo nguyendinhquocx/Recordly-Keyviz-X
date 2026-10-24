@@ -7,7 +7,7 @@ import type {
 	WebcamOverlaySettings,
 	ZoomRegion,
 } from "../types";
-import { buildClipExportPlans } from "./clipExportPlan";
+import { buildClipExportPlans, getClipRegionsForPlans } from "./clipExportPlan";
 
 const DEFAULT_WEBCAM: WebcamOverlaySettings = {
 	visibleRanges: [{ startMs: 1200, endMs: 4800 }],
@@ -29,11 +29,7 @@ const DEFAULT_WEBCAM: WebcamOverlaySettings = {
 	margin: 24,
 };
 
-function makeAnnotation(
-	id: string,
-	startMs: number,
-	endMs: number,
-): AnnotationRegion {
+function makeAnnotation(id: string, startMs: number, endMs: number): AnnotationRegion {
 	return {
 		id,
 		startMs,
@@ -92,9 +88,7 @@ describe("buildClipExportPlans", () => {
 		expect(b.frameIndexToTimelineMs(0)).toBe(1000);
 		expect(b.frameIndexToOutputMs(0)).toBe(0);
 		// Global frame 30 = 1000ms on the shared 30fps grid; U = 0 -> S = S0.
-		expect(b.frameIndexToSourceMs(30 - b.firstFrame + b.firstFrame - b.firstFrame)).toBe(
-			2000,
-		);
+		expect(b.frameIndexToSourceMs(30 - b.firstFrame + b.firstFrame - b.firstFrame)).toBe(2000);
 		expect(a.frameIndexToSourceMs(0)).toBe(0);
 		// Frame 15 = 500ms into clip a at 2x -> source 1000ms.
 		expect(a.frameIndexToSourceMs(15)).toBe(1000);
@@ -116,36 +110,33 @@ describe("buildClipExportPlans", () => {
 		expect(plans.map((plan) => plan.clipIndex)).toEqual([1, 2]);
 	});
 
-	it.each([24, 30, 60, 59.94])(
-		"preserves the global %s fps frame grid across fractional-frame cuts",
-		(fps) => {
-			// 137ms clips create fractional cuts on every fps.
-			const clips: ClipRegion[] = Array.from({ length: 100 }, (_, i) => ({
-				id: `${i}`,
-				startMs: i * 137,
-				endMs: (i + 1) * 137,
-				sourceStartMs: i * 411,
-				speed: 3,
-			}));
-			const { plans } = buildClipExportPlans({
-				clips,
-				sourceDurationMs: 100_000,
-				fps,
-			});
-			const totalFrames = plans.reduce((sum, plan) => sum + plan.frameCount, 0);
-			expect(totalFrames).toBe(Math.ceil((13_700 / 1000) * fps));
-			// Adjacent clips share one boundary frame count: ceil(next.T0*fps) starts
-			// where the previous clip ended on the global grid.
-			for (let i = 1; i < plans.length; i++) {
-				expect(plans[i].firstFrame).toBe(
-					plans[i - 1].firstFrame + plans[i - 1].frameCount,
-				);
-			}
-			for (const plan of plans) {
-				expect(plan.outputDurationMs).toBeCloseTo((plan.frameCount / fps) * 1000, 6);
-			}
-		},
-	);
+	it.each([
+		24, 30, 60, 59.94,
+	])("preserves the global %s fps frame grid across fractional-frame cuts", (fps) => {
+		// 137ms clips create fractional cuts on every fps.
+		const clips: ClipRegion[] = Array.from({ length: 100 }, (_, i) => ({
+			id: `${i}`,
+			startMs: i * 137,
+			endMs: (i + 1) * 137,
+			sourceStartMs: i * 411,
+			speed: 3,
+		}));
+		const { plans } = buildClipExportPlans({
+			clips,
+			sourceDurationMs: 100_000,
+			fps,
+		});
+		const totalFrames = plans.reduce((sum, plan) => sum + plan.frameCount, 0);
+		expect(totalFrames).toBe(Math.ceil((13_700 / 1000) * fps));
+		// Adjacent clips share one boundary frame count: ceil(next.T0*fps) starts
+		// where the previous clip ended on the global grid.
+		for (let i = 1; i < plans.length; i++) {
+			expect(plans[i].firstFrame).toBe(plans[i - 1].firstFrame + plans[i - 1].frameCount);
+		}
+		for (const plan of plans) {
+			expect(plan.outputDurationMs).toBeCloseTo((plan.frameCount / fps) * 1000, 6);
+		}
+	});
 
 	it("skips invalid clips and names them; zero valid clips yields no plans", () => {
 		const clips: ClipRegion[] = [
@@ -183,9 +174,33 @@ describe("buildClipExportPlans", () => {
 			{ clipId: "outside-source-max", clipIndex: 6, reason: "outside-source" },
 		]);
 
+		const unknownDuration = buildClipExportPlans({
+			clips: [{ id: "unknown-duration", startMs: 0, endMs: 500, speed: 1 }],
+			sourceDurationMs: Number.NaN,
+			fps: 30,
+		});
+		expect(unknownDuration.plans).toEqual([]);
+		expect(unknownDuration.skipped).toEqual([
+			{ clipId: "unknown-duration", clipIndex: 1, reason: "outside-source" },
+		]);
+
 		const empty = buildClipExportPlans({ clips: [], sourceDurationMs: 5000, fps: 30 });
 		expect(empty.plans).toEqual([]);
 		expect(empty.skipped).toEqual([]);
+	});
+
+	it("passes only valid original clips to the decoder in plan order", () => {
+		const clips: ClipRegion[] = [
+			{ id: "first", startMs: 0, endMs: 1000, speed: 1 },
+			{ id: "invalid", startMs: 1000, endMs: 2000, speed: 0 },
+			{ id: "last", startMs: 2000, endMs: 3000, speed: 1 },
+		];
+		const { plans } = buildClipExportPlans({ clips, sourceDurationMs: 5000, fps: 30 });
+		const decoderClips = getClipRegionsForPlans(clips, plans);
+
+		expect(decoderClips.map((clip) => clip.id)).toEqual(["first", "last"]);
+		expect(decoderClips[0]).toBe(clips[0]);
+		expect(decoderClips[1]).toBe(clips[2]);
 	});
 
 	it("keeps a zoom pair connected across a clip boundary for both sides", () => {
@@ -319,28 +334,12 @@ describe("buildClipExportPlans", () => {
 		// Cue c1 bleeds into clip b's source window [2000..4000) at 2x speed.
 		expect(plans[1].captionCues[0]).toMatchObject({ startMs: 2000, endMs: 2400 });
 
-		// Sidecars live in clip-local output time (word timings projected too).
-		expect(plans[0].sidecarCues).toEqual([
-			{
-				startMs: 200,
-				endMs: 2000,
-				text: "hello world",
-				words: [
-					{ text: "hello", startMs: 200, endMs: 800, leadingSpace: false },
-					{ text: "world", startMs: 800, endMs: 2000, leadingSpace: true },
-				],
-			},
-		]);
+		// Sidecars preserve the existing cue-level SRT/VTT semantics and use clip-local output time.
+		expect(plans[0].sidecarCues).toEqual([{ startMs: 200, endMs: 2000, text: "hello world" }]);
 		// Clip b output duration is 1000ms (source 2000ms at 2x); c1 maps to
-		// U = (2000-2000)/2 .. (2400-2000)/2 = 0..200, c2 to 200..400. Only the
-		// "world" word overlaps clip b's source window.
+		// U = (2000-2000)/2 .. (2400-2000)/2 = 0..200, c2 to 200..400.
 		expect(plans[1].sidecarCues).toEqual([
-			{
-				startMs: 0,
-				endMs: 200,
-				text: "hello world",
-				words: [{ text: "world", startMs: 0, endMs: 200, leadingSpace: true }],
-			},
+			{ startMs: 0, endMs: 200, text: "hello world" },
 			{ startMs: 200, endMs: 400, text: "next" },
 		]);
 		expect(plans[1].outputDurationMs).toBe(2000);

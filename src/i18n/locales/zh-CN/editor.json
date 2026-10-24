@@ -248,6 +248,13 @@
 		"resultSummary": "已保存 {{completed}} / {{total}} 个剪辑。",
 		"sidecarWarning": "{{count}} 个剪辑保存时缺少字幕文件。",
 		"clipFailed": "剪辑 {{index}}：{{error}}",
-		"retryFailed": "重试失败的剪辑"
+		"retryFailed": "重试失败的剪辑",
+		"skippedSummary": "已跳过 {{count}} 个无效剪辑。",
+		"clipSkipped": "剪辑 {{index}}（{{id}}）：{{reason}}",
+		"skipReasonInvalidBounds": "时间线边界无效",
+		"skipReasonInvalidSpeed": "播放速度无效",
+		"skipReasonOutsideSource": "源区间超出录制范围",
+		"sidecarClipWarning": "剪辑 {{index}} 字幕文件警告：{{message}}",
+		"notPublishedAfterWriteFailure": "由于前一个剪辑保存失败，未发布此剪辑"
 	}
 }

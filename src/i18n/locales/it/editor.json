@@ -248,6 +248,13 @@
 		"resultSummary": "{{completed}} di {{total}} clip salvati.",
 		"sidecarWarning": "{{count}} clip salvati senza file di sottotitoli.",
 		"clipFailed": "Clip {{index}}: {{error}}",
-		"retryFailed": "Riprova i clip non riusciti"
+		"retryFailed": "Riprova i clip non riusciti",
+		"skippedSummary": "{{count}} clip non validi ignorati.",
+		"clipSkipped": "Clip {{index}} ({{id}}): {{reason}}",
+		"skipReasonInvalidBounds": "Limiti della timeline non validi",
+		"skipReasonInvalidSpeed": "Velocità di riproduzione non valida",
+		"skipReasonOutsideSource": "Intervallo sorgente fuori dalla registrazione",
+		"sidecarClipWarning": "Avviso file sottotitoli clip {{index}}: {{message}}",
+		"notPublishedAfterWriteFailure": "Non pubblicato perché il salvataggio di un clip precedente non è riuscito"
 	}
 }

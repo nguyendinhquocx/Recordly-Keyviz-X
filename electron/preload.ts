@@ -524,6 +524,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	cancelBatchExportSession: (batchId: string) => {
 		return ipcRenderer.invoke("batch-export-cancel", batchId);
 	},
+	closeBatchExportSession: (batchId: string) => {
+		return ipcRenderer.invoke("batch-export-close", batchId);
+	},
 	getVideoAudioFallbackPaths: (videoPath: string) => {
 		return ipcRenderer.invoke("get-video-audio-fallback-paths", videoPath);
 	},

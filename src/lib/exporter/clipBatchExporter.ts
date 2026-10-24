@@ -17,15 +17,9 @@ import type {
 	ZoomRegion,
 	ZoomTransitionEasing,
 } from "@/components/video-editor/types";
-import {
-	ENCODED_H264_COLOR_SPACE_FALLBACK,
-	EXPORT_CANVAS_COLOR_SPACE,
-} from "./videoColorSpace";
+import { ENCODED_H264_COLOR_SPACE_FALLBACK, EXPORT_CANVAS_COLOR_SPACE } from "./videoColorSpace";
 import type { ExportEncodingMode } from "./types";
-import {
-	getWebCodecsEncodeQueueLimit,
-	getWebCodecsKeyFrameInterval,
-} from "./exportTuning";
+import { getWebCodecsEncodeQueueLimit, getWebCodecsKeyFrameInterval } from "./exportTuning";
 /**
  * Shared-state MP4 batch renderer (Separate-clips mode).
  *
@@ -67,6 +61,7 @@ export interface ClipBatchRenderPorts {
 			height: number;
 			hasAudio: boolean;
 		}>;
+		cancel: () => void;
 		decodeAll: (
 			targetFrameRate: number,
 			trimRegions: TrimRegion[] | undefined,
@@ -95,15 +90,21 @@ export interface ClipBatchRenderPorts {
 		dispose: () => void;
 	};
 	/** Creates one MP4 output sink (encoder + muxer) per clip file. */
-	createSink: () => Promise<ClipBatchSink>;
-	/** Renders the clip-local edited audio track as a WAV blob, or null when silent. */
-	renderClipAudioWav: (plan: ClipExportPlan) => Promise<Blob | null>;
+	createSink: (options: {
+		maxEncodeQueue: number;
+		isCancelled: () => boolean;
+	}) => Promise<ClipBatchSink>;
+	/** Renders clip-local edited audio as WAV, or null when no audio source exists. */
+	renderClipAudioWav: (plan: ClipExportPlan, hasEmbeddedAudio: boolean) => Promise<Blob | null>;
+	/** Interrupts the currently active offline audio renderer, if any. */
+	cancelAudio: () => void;
 	/** FFmpeg muxing of the clip-local edited track into the video-only temp file. */
 	muxClipAudio: (
 		videoTempPath: string,
 		wav: Blob,
 		plan: ClipExportPlan,
 	) => Promise<{ success: boolean; tempPath?: string; error?: string }>;
+	discardTemp: (tempPath: string) => Promise<void>;
 }
 
 export interface ClipBatchSink {
@@ -114,9 +115,38 @@ export interface ClipBatchSink {
 		keyFrame: boolean,
 	) => Promise<void>;
 	/** Flush encoder and finalize the muxer; resolves the app-managed temp path. */
-	finish: () => Promise<{ tempFilePath?: string; error?: string }>;
+	finish: () => Promise<{
+		tempFilePath?: string;
+		error?: string;
+		errorKind?: "render" | "write";
+	}>;
 	/** Best-effort cleanup of an aborted sink (cancel/error path). */
 	abort: () => Promise<void>;
+}
+
+export class ClipBatchSinkWriteError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "ClipBatchSinkWriteError";
+	}
+}
+
+/** Close resources if sink creation fails after the main-process stream opens. */
+export async function cleanupFailedClipBatchSinkInitialization(
+	muxer: { abortStream: () => Promise<void>; destroy: () => void },
+	encoder: { state: string; close: () => void } | null,
+): Promise<void> {
+	try {
+		if (encoder && encoder.state !== "closed") encoder.close();
+	} catch {
+		/* best-effort */
+	}
+	try {
+		await muxer.abortStream();
+	} catch {
+		/* best-effort */
+	}
+	muxer.destroy();
 }
 
 export interface ClipBatchExporterOptions {
@@ -126,6 +156,8 @@ export interface ClipBatchExporterOptions {
 	trimRegions?: TrimRegion[];
 	speedRegions?: SpeedRegion[];
 	plans: ClipExportPlan[];
+	/** Only these plans create output sinks; preceding plans may replay state. */
+	outputClipIds?: string[];
 	audioRegions?: AudioRegion[];
 	sourceAudioTrackSettings?: SourceAudioTrackSettings;
 	/** Max frames in the WebCodecs encode queue before backpressure waits. */
@@ -163,6 +195,8 @@ export class ClipBatchExporter {
 	/** Request cancellation; checked before every render/encode step. */
 	cancel(): void {
 		this.localCancelled = true;
+		this.ports.decoder.cancel();
+		this.ports.cancelAudio();
 	}
 
 	private isCancelled(): boolean {
@@ -172,12 +206,21 @@ export class ClipBatchExporter {
 	async exportBatch(): Promise<ClipBatchExportResult> {
 		const { frameRate } = this.options;
 		const plans = [...this.options.plans].sort((a, b) => a.firstFrame - b.firstFrame);
+		const outputClipIds = new Set(
+			this.options.outputClipIds ?? plans.map((plan) => plan.clipId),
+		);
 		const items = new Map<string, ClipBatchResultItem>();
 		for (const plan of plans) {
 			items.set(plan.clipId, { plan, status: "skipped" });
 		}
 		if (plans.length === 0) {
 			return { items: [], cancelled: this.isCancelled() };
+		}
+		if (this.isCancelled()) {
+			return {
+				items: plans.map((plan) => ({ plan, status: "cancelled" as const })),
+				cancelled: true,
+			};
 		}
 
 		const frameDurationUs = 1_000_000 / frameRate;
@@ -186,6 +229,8 @@ export class ClipBatchExporter {
 		// across await points mutated inside the decode callback closure.
 		const sinkState: { current: ActiveClipSink | null } = { current: null };
 		let activeError: string | null = null;
+		let stopAfterWriteFailure = false;
+		let writeFailureMessage = "Batch output could not be written";
 		// Clip whose remaining frames are skipped after a per-clip render error.
 		let skipUntilClipId: string | null = null;
 
@@ -203,18 +248,21 @@ export class ClipBatchExporter {
 					error: message,
 				});
 				this.options.onClipResult?.(current.plan, "render-error", { error: message });
+				await current.sink.abort().catch(() => undefined);
 				return;
 			}
 			const finished = await current.sink.finish();
 			if (finished.error || !finished.tempFilePath) {
-				items.set(current.plan.clipId, {
-					plan: current.plan,
-					status: "write-error",
-					error: finished.error || "Batch output write failed",
-				});
-				this.options.onClipResult?.(current.plan, "write-error", {
-					error: finished.error || "Batch output write failed",
-				});
+				const message = finished.error || "Batch output write failed";
+				const status = finished.errorKind === "render" ? "render-error" : "write-error";
+				items.set(current.plan.clipId, { plan: current.plan, status, error: message });
+				this.options.onClipResult?.(current.plan, status, { error: message });
+				await current.sink.abort().catch(() => undefined);
+				if (status === "write-error") {
+					stopAfterWriteFailure = true;
+					writeFailureMessage = message;
+					this.ports.decoder.cancel();
+				}
 				return;
 			}
 			items.set(current.plan.clipId, {
@@ -252,16 +300,27 @@ export class ClipBatchExporter {
 			return null;
 		};
 
+		let hasEmbeddedAudio = false;
 		try {
-			await this.ports.decoder.loadMetadata(this.options.videoUrl);
-			await this.ports.renderer.initialize();
+			const mediaInfo = await this.ports.decoder.loadMetadata(this.options.videoUrl);
+			hasEmbeddedAudio = mediaInfo.hasAudio;
+			if (this.isCancelled()) {
+				cancelled = true;
+				for (const [clipId, item] of items) {
+					items.set(clipId, { plan: item.plan, status: "cancelled" });
+				}
+			} else {
+				await this.ports.renderer.initialize();
+			}
+			if (cancelled || this.isCancelled()) {
+				cancelled = true;
+				return { items: plans.map((plan) => items.get(plan.clipId)!), cancelled: true };
+			}
 
 			const encodeQueueLimit =
-				this.options.maxEncodeQueue ??
-				getWebCodecsEncodeQueueLimit(frameRate, "balanced");
+				this.options.maxEncodeQueue ?? getWebCodecsEncodeQueueLimit(frameRate, "balanced");
 			const keyFrameInterval = getWebCodecsKeyFrameInterval(frameRate, "balanced");
 			let globalFrame = 0;
-			let encodeBacklog = 0;
 
 			await this.ports.decoder.decodeAll(
 				frameRate,
@@ -271,6 +330,15 @@ export class ClipBatchExporter {
 					const currentGlobalFrame = globalFrame;
 					globalFrame += 1;
 
+					if (this.isCancelled()) {
+						cancelled = true;
+						videoFrame?.close();
+						return;
+					}
+					if (stopAfterWriteFailure) {
+						videoFrame?.close();
+						return;
+					}
 					if (videoFrame === null) {
 						// Gap frame on the global grid: owned by no clip, never encoded.
 						// It still advances the shared renderer state exactly like a
@@ -285,11 +353,6 @@ export class ClipBatchExporter {
 						);
 						return;
 					}
-					if (this.isCancelled()) {
-						cancelled = true;
-						videoFrame.close();
-						return;
-					}
 
 					const plan = findPlanForGlobalFrame(currentGlobalFrame);
 					if (!plan) {
@@ -301,16 +364,55 @@ export class ClipBatchExporter {
 						skipUntilClipId = null;
 					}
 					if (skipUntilClipId === plan.clipId) {
-						// Rest frames of the failed clip are skipped without rendering
-						// and without spinning up new sinks.
-						videoFrame.close();
+						// Don't encode the failed clip's remaining frames, but keep advancing
+						// stateful zoom/cursor render state for the next clip.
+						try {
+							await this.ports.renderer.renderFrame(
+								videoFrame,
+								sourceTimestampUs,
+								cursorTimestampMs * 1000,
+								frameDurationUs,
+								(currentGlobalFrame / frameRate) * 1_000_000,
+							);
+						} finally {
+							videoFrame.close();
+						}
 						return;
 					}
+
+					if (!outputClipIds.has(plan.clipId)) {
+						// Retried batches replay completed/intervening clips to restore the
+						// original stateful renderer, but never create sinks for them.
+						try {
+							if (sinkState.current) await finishActiveSink();
+							if (stopAfterWriteFailure) return;
+							if (this.isCancelled()) {
+								cancelled = true;
+								return;
+							}
+							await this.ports.renderer.renderFrame(
+								videoFrame,
+								sourceTimestampUs,
+								cursorTimestampMs * 1000,
+								frameDurationUs,
+								(currentGlobalFrame / frameRate) * 1_000_000,
+							);
+							if (this.isCancelled()) cancelled = true;
+						} finally {
+							videoFrame.close();
+						}
+						return;
+					}
+
 					if (!sinkState.current || sinkState.current.plan.clipId !== plan.clipId) {
 						// Rotate the MP4 output sink at the clip boundary. The renderer
 						// session continues untouched — camera/cursor/zoom state survives.
 						try {
 							await finishActiveSink();
+							if (stopAfterWriteFailure) {
+								videoFrame.close();
+								return;
+							}
 							if (this.isCancelled()) {
 								cancelled = true;
 								videoFrame.close();
@@ -318,22 +420,54 @@ export class ClipBatchExporter {
 							}
 							sinkState.current = {
 								plan,
-								sink: await this.ports.createSink(),
+								sink: await this.ports.createSink({
+									maxEncodeQueue: encodeQueueLimit,
+									isCancelled: () => this.isCancelled(),
+								}),
 								localFrameCount: 0,
 							};
+							if (this.isCancelled()) {
+								cancelled = true;
+								videoFrame.close();
+								await abortActiveSink();
+								return;
+							}
 						} catch (rotationError) {
 							videoFrame.close();
 							const message =
 								rotationError instanceof Error
 									? rotationError.message
 									: String(rotationError);
-							items.set(plan.clipId, {
-								plan,
-								status: "render-error",
-								error: message,
-							});
-							this.options.onClipResult?.(plan, "render-error", { error: message });
-							skipUntilClipId = plan.clipId;
+							if (this.isCancelled()) {
+								cancelled = true;
+								items.set(plan.clipId, { plan, status: "cancelled" });
+								this.options.onClipResult?.(plan, "cancelled");
+								await abortActiveSink();
+								return;
+							}
+							if (rotationError instanceof ClipBatchSinkWriteError) {
+								stopAfterWriteFailure = true;
+								writeFailureMessage = message;
+								items.set(plan.clipId, {
+									plan,
+									status: "write-error",
+									error: message,
+								});
+								this.options.onClipResult?.(plan, "write-error", {
+									error: message,
+								});
+								this.ports.decoder.cancel();
+							} else {
+								items.set(plan.clipId, {
+									plan,
+									status: "render-error",
+									error: message,
+								});
+								this.options.onClipResult?.(plan, "render-error", {
+									error: message,
+								});
+								skipUntilClipId = plan.clipId;
+							}
 							return;
 						}
 						this.options.onClipStart?.(plan);
@@ -359,50 +493,54 @@ export class ClipBatchExporter {
 							return;
 						}
 
-						const canvas = this.ports.renderer.getCanvas();
-						// Backpressure: wait while the encode queue is saturated.
-						while (encodeBacklog >= encodeQueueLimit && !this.isCancelled()) {
-							await new Promise((resolve) => setTimeout(resolve, 1));
-						}
-						if (this.isCancelled()) {
-							cancelled = true;
-							return;
-						}
-
 						const activeSink = sinkState.current;
 						if (!activeSink) {
 							throw new Error("Batch sink disappeared before encode");
 						}
-						encodeBacklog += 1;
+						// The real sink enforces backpressure against its actual WebCodecs
+						// queue and pending mux writes, not this call stack.
 						await activeSink.sink.addFrame(
-							canvas,
+							this.ports.renderer.getCanvas(),
 							localTimestampUs,
 							frameDurationUs,
-							// Every file must start on a keyframe; afterwards follow the
-							// shared key-frame cadence on the LOCAL index.
 							localFrame % Math.max(keyFrameInterval, 1) === 0,
 						);
-						encodeBacklog -= 1;
 						activeSink.localFrameCount += 1;
 					} catch (frameError) {
 						const failed = sinkState.current;
 						if (failed && failed.plan.clipId === plan.clipId) {
 							sinkState.current = null;
-							skipUntilClipId = plan.clipId;
-							items.set(plan.clipId, {
-								plan,
-								status: "render-error",
-								error:
-									frameError instanceof Error
-										? frameError.message
-										: String(frameError),
-							});
-							this.options.onClipResult?.(plan, "render-error", {
-								error:
-									frameError instanceof Error
-										? frameError.message
-										: String(frameError),
-							});
+							const message =
+								frameError instanceof Error
+									? frameError.message
+									: String(frameError);
+							if (this.isCancelled()) {
+								cancelled = true;
+								items.set(plan.clipId, { plan, status: "cancelled" });
+								this.options.onClipResult?.(plan, "cancelled");
+							} else if (frameError instanceof ClipBatchSinkWriteError) {
+								stopAfterWriteFailure = true;
+								writeFailureMessage = message;
+								items.set(plan.clipId, {
+									plan,
+									status: "write-error",
+									error: message,
+								});
+								this.options.onClipResult?.(plan, "write-error", {
+									error: message,
+								});
+								this.ports.decoder.cancel();
+							} else {
+								skipUntilClipId = plan.clipId;
+								items.set(plan.clipId, {
+									plan,
+									status: "render-error",
+									error: message,
+								});
+								this.options.onClipResult?.(plan, "render-error", {
+									error: message,
+								});
+							}
 							await failed.sink.abort().catch(() => undefined);
 						} else {
 							throw frameError;
@@ -421,28 +559,46 @@ export class ClipBatchExporter {
 			}
 		} catch (error) {
 			activeError = error instanceof Error ? error.message : String(error);
-			const failed = sinkState.current;
-			if (failed) {
-				const current = failed;
-				sinkState.current = null;
-				items.set(current.plan.clipId, {
-					plan: current.plan,
-					status: "render-error",
-					error: activeError,
-				});
-				await current.sink.abort().catch(() => undefined);
-			} else if (items.size > 0) {
-				// Session-level failure before any sink was active: every clip that
-				// never started is reported as a render error, not a silent skip.
-				for (const [clipId, item] of items) {
-					if (item.status === "skipped") {
-						items.set(clipId, { plan: item.plan, status: "render-error", error: activeError });
+			if (!stopAfterWriteFailure) {
+				const failed = sinkState.current;
+				if (failed) {
+					const current = failed;
+					sinkState.current = null;
+					items.set(current.plan.clipId, {
+						plan: current.plan,
+						status: "render-error",
+						error: activeError,
+					});
+					await current.sink.abort().catch(() => undefined);
+				} else if (items.size > 0) {
+					// Session-level render failure: clips that never started are failed,
+					// not silently reported as a successful partial batch.
+					for (const [clipId, item] of items) {
+						if (item.status === "skipped") {
+							items.set(clipId, {
+								plan: item.plan,
+								status: "render-error",
+								error: activeError,
+							});
+						}
 					}
 				}
 			}
 		} finally {
 			this.ports.renderer.dispose();
 			this.ports.decoder.destroy();
+		}
+
+		if (stopAfterWriteFailure && !cancelled && !this.isCancelled()) {
+			for (const [clipId, item] of items) {
+				if (item.status === "skipped") {
+					items.set(clipId, {
+						plan: item.plan,
+						status: "write-error",
+						error: writeFailureMessage,
+					});
+				}
+			}
 		}
 
 		// Attach the clip-local edited audio track to every completed video.
@@ -453,26 +609,49 @@ export class ClipBatchExporter {
 				break;
 			}
 			try {
-				const wav = await this.ports.renderClipAudioWav(item.plan);
+				const wav = await this.ports.renderClipAudioWav(item.plan, hasEmbeddedAudio);
+				if (this.isCancelled()) {
+					cancelled = true;
+					await this.ports.discardTemp(item.tempFilePath).catch(() => undefined);
+					items.set(clipId, { plan: item.plan, status: "cancelled" });
+					continue;
+				}
 				if (!wav) continue;
 				const muxed = await this.ports.muxClipAudio(item.tempFilePath, wav, item.plan);
+				if (this.isCancelled()) {
+					cancelled = true;
+					await this.ports.discardTemp(item.tempFilePath).catch(() => undefined);
+					if (muxed.tempPath)
+						await this.ports.discardTemp(muxed.tempPath).catch(() => undefined);
+					items.set(clipId, { plan: item.plan, status: "cancelled" });
+					continue;
+				}
 				if (!muxed.success || !muxed.tempPath) {
-					// The video-only temp lacks the edited audio track, so it must not
-					// be retained for destination retry — re-render instead.
+					// The video-only temp lacks edited audio; discard it instead of
+					// accidentally publishing a silent/incomplete file.
+					await this.ports.discardTemp(item.tempFilePath).catch(() => undefined);
 					items.set(clipId, {
-						...item,
+						plan: item.plan,
 						status: "render-error",
 						error: muxed.error || "Failed to mux clip audio",
 					});
 				} else {
+					// FFmpeg returns a new managed temp. Remove the video-only source.
+					await this.ports.discardTemp(item.tempFilePath).catch(() => undefined);
 					items.set(clipId, { ...item, tempFilePath: muxed.tempPath });
 				}
 			} catch (error) {
-				items.set(clipId, {
-					...item,
-					status: "render-error",
-					error: error instanceof Error ? error.message : String(error),
-				});
+				await this.ports.discardTemp(item.tempFilePath).catch(() => undefined);
+				if (this.isCancelled()) {
+					cancelled = true;
+					items.set(clipId, { plan: item.plan, status: "cancelled" });
+				} else {
+					items.set(clipId, {
+						plan: item.plan,
+						status: "render-error",
+						error: error instanceof Error ? error.message : String(error),
+					});
+				}
 			}
 		}
 
@@ -499,15 +678,32 @@ export function captureBatchVideoFrame(
 
 /**
  * Rebase a plan's imported audio overlays onto the clip-local timeline while
- * keeping their original file positions. A region that started before the
- * clip keeps a NEGATIVE startMs: the offline audio renderer turns that into a
- * buffer offset, so a clipped overlay never restarts its file at zero.
+ * keeping their original file positions. Output placement stays in clip-local
+ * time; `sourceOffsetMs` separately tells the offline renderer where to begin
+ * reading the imported file so a clipped overlay never restarts at zero.
  */
-export function buildClipLocalAudioRegions(plan: ClipExportPlan): AudioRegion[] {
+type ClipLocalAudioRegion = AudioRegion & { sourceOffsetMs: number };
+
+export function shouldRenderClipAudio(
+	hasEmbeddedAudio: boolean,
+	sourceAudioFallbackPaths: string[] | undefined,
+	plan: ClipExportPlan,
+): boolean {
+	return (
+		hasEmbeddedAudio ||
+		(sourceAudioFallbackPaths?.length ?? 0) > 0 ||
+		plan.audioOverlays.length > 0
+	);
+}
+
+export function buildClipLocalAudioRegions(plan: ClipExportPlan): ClipLocalAudioRegion[] {
 	return plan.audioOverlays.map((overlay) => ({
 		id: overlay.regionId,
-		startMs: overlay.outputStartMs - overlay.sourceOffsetMs,
-		endMs: overlay.outputEndMs - overlay.sourceOffsetMs,
+		// Placement remains the exact clip-local overlap. The separate file
+		// offset tells OfflineAudioProcessor where to start reading the buffer.
+		startMs: overlay.outputStartMs,
+		endMs: overlay.outputEndMs,
+		sourceOffsetMs: overlay.sourceOffsetMs,
 		audioPath: overlay.audioPath,
 		volume: overlay.volume,
 		...(overlay.normalize === undefined ? {} : { normalize: overlay.normalize }),
@@ -566,8 +762,6 @@ export interface ClipBatchAdapterConfig {
 	previewHeight?: number;
 	sourceAudioFallbackPaths?: string[];
 	sourceAudioFallbackStartDelayMsByPath?: Record<string, number>;
-	/** Whether any audio source exists for the loaded recording. */
-	hasAudio: boolean;
 }
 
 /**
@@ -585,9 +779,10 @@ export async function createClipBatchRenderPorts(
 	const { getOrderedSupportedMp4EncoderCandidates } = await import("./mp4Support");
 
 	const decoder = new StreamingVideoDecoder();
-	// The renderer needs the decoded video dimensions for layout, so it is
-	// created lazily after metadata is loaded (exportBatch loads first).
-	let videoInfo: { width: number; height: number } | null = null;
+	let activeAudioProcessor: InstanceType<typeof AudioProcessor> | null = null;
+	// The renderer needs decoded dimensions; audio routing also depends on the
+	// recording's actual streams, not the editor's selected source-audio state.
+	let videoInfo: { width: number; height: number; hasAudio: boolean } | null = null;
 	let renderer: import("./modernFrameRenderer").FrameRenderer | null = null;
 	const getRenderer = () => {
 		if (!renderer) {
@@ -659,9 +854,10 @@ export async function createClipBatchRenderPorts(
 		decoder: {
 			loadMetadata: async (videoUrl) => {
 				const info = await decoder.loadMetadata(videoUrl);
-				videoInfo = { width: info.width, height: info.height };
+				videoInfo = { width: info.width, height: info.height, hasAudio: info.hasAudio };
 				return { width: info.width, height: info.height, hasAudio: info.hasAudio };
 			},
+			cancel: () => decoder.cancel(),
 			decodeAll: (frameRate, trimRegions, speedRegions, onFrame, clipRegions) =>
 				// One decode pass over the full edited timeline, exactly like a
 				// full-timeline export; clip sinks rotate inside the frame callback.
@@ -679,131 +875,208 @@ export async function createClipBatchRenderPorts(
 			initialize: async () => {
 				await createRenderer().initialize();
 			},
-			renderFrame: (frame, sourceTimestampUs, cursorTimestampUs, frameDurationUs, timelineUs) =>
-				getRenderer().renderFrame(frame, sourceTimestampUs, cursorTimestampUs, frameDurationUs, timelineUs),
+			renderFrame: (
+				frame,
+				sourceTimestampUs,
+				cursorTimestampUs,
+				frameDurationUs,
+				timelineUs,
+			) =>
+				getRenderer().renderFrame(
+					frame,
+					sourceTimestampUs,
+					cursorTimestampUs,
+					frameDurationUs,
+					timelineUs,
+				),
 			getCanvas: () => getRenderer().getCanvas(),
 			dispose: () => renderer?.destroy(),
 		},
-		createSink: async () => {
+		createSink: async ({ maxEncodeQueue, isCancelled }) => {
 			const muxer = new VideoMuxer(muxConfigBase, false);
-			await muxer.initialize();
-			const candidates = getOrderedSupportedMp4EncoderCandidates({
-				codec: config.codec,
-			});
-			let resolvedCodec: string | null = null;
-			let description: Uint8Array | undefined;
-			let colorSpace: VideoColorSpaceInit | undefined;
-			let chunkCount = 0;
-			let muxError: Error | null = null;
-			let pendingMuxing = Promise.resolve();
+			try {
+				await muxer.initialize();
+			} catch (error) {
+				await cleanupFailedClipBatchSinkInitialization(muxer, null);
+				throw new ClipBatchSinkWriteError(
+					error instanceof Error ? error.message : String(error),
+				);
+			}
+			let createdEncoder: VideoEncoder | null = null;
+			try {
+				const candidates = getOrderedSupportedMp4EncoderCandidates({
+					codec: config.codec,
+				});
+				let resolvedCodec: string | null = null;
+				let description: Uint8Array | undefined;
+				let colorSpace: VideoColorSpaceInit | undefined;
+				let chunkCount = 0;
+				let muxError: Error | null = null;
+				let encoderError: Error | null = null;
+				let queuedFrames = 0;
+				let pendingMuxChunks = 0;
+				let pendingMuxing = Promise.resolve();
+				const queueLimit = Math.max(1, Math.floor(maxEncodeQueue));
 
-			const encoder = new VideoEncoder({
-				output: (chunk, meta) => {
-					if (meta?.decoderConfig?.description && !description) {
-						const desc = meta.decoderConfig.description;
-						description = ArrayBuffer.isView(desc)
-							? new Uint8Array(desc.buffer, desc.byteOffset, desc.byteLength)
-							: new Uint8Array(desc);
-					}
-					if (meta?.decoderConfig?.colorSpace && !colorSpace) {
-						colorSpace = meta.decoderConfig.colorSpace;
-					}
-					const isFirstChunk = chunkCount === 0;
-					chunkCount += 1;
-					pendingMuxing = pendingMuxing
-						.then(async () => {
-							if (isFirstChunk && description) {
-								await muxer.addVideoChunk(chunk, {
-									decoderConfig: {
-										codec: resolvedCodec ?? config.codec ?? "avc1.640033",
-										codedWidth: config.width,
-										codedHeight: config.height,
-										description,
-										colorSpace:
-											colorSpace ?? ENCODED_H264_COLOR_SPACE_FALLBACK,
-									},
-								});
-							} else {
-								await muxer.addVideoChunk(chunk, meta);
-							}
-						})
-						.catch((error) => {
-							muxError = error instanceof Error ? error : new Error(String(error));
-						});
-				},
-				error: (error) => {
-					muxError = error instanceof Error ? error : new Error(String(error));
-				},
-			});
+				const encoder = new VideoEncoder({
+					output: (chunk, meta) => {
+						if (meta?.decoderConfig?.description && !description) {
+							const desc = meta.decoderConfig.description;
+							description = ArrayBuffer.isView(desc)
+								? new Uint8Array(desc.buffer, desc.byteOffset, desc.byteLength)
+								: new Uint8Array(desc);
+						}
+						if (meta?.decoderConfig?.colorSpace && !colorSpace) {
+							colorSpace = meta.decoderConfig.colorSpace;
+						}
+						queuedFrames = Math.max(0, queuedFrames - 1);
+						pendingMuxChunks += 1;
+						const isFirstChunk = chunkCount === 0;
+						chunkCount += 1;
+						pendingMuxing = pendingMuxing
+							.then(async () => {
+								if (isFirstChunk && description) {
+									await muxer.addVideoChunk(chunk, {
+										decoderConfig: {
+											codec: resolvedCodec ?? config.codec ?? "avc1.640033",
+											codedWidth: config.width,
+											codedHeight: config.height,
+											description,
+											colorSpace:
+												colorSpace ?? ENCODED_H264_COLOR_SPACE_FALLBACK,
+										},
+									});
+								} else {
+									await muxer.addVideoChunk(chunk, meta);
+								}
+							})
+							.catch((error) => {
+								muxError =
+									error instanceof Error ? error : new Error(String(error));
+							})
+							.finally(() => {
+								pendingMuxChunks = Math.max(0, pendingMuxChunks - 1);
+							});
+					},
+					error: (error) => {
+						encoderError = error instanceof Error ? error : new Error(String(error));
+					},
+				});
+				createdEncoder = encoder;
 
-			let configured = false;
-			for (const candidate of candidates) {
-				const encoderConfig: VideoEncoderConfig = {
-					width: config.width,
-					height: config.height,
-					bitrate: config.bitrate,
-					framerate: config.frameRate,
-					bitrateMode: "variable",
-					codec: candidate.codec,
-					hardwareAcceleration: candidate.hardwareAcceleration,
-					latencyMode: "quality",
+				const waitForEncodeCapacity = async () => {
+					while (
+						!isCancelled() &&
+						!muxError &&
+						!encoderError &&
+						Math.max(encoder.encodeQueueSize, queuedFrames, pendingMuxChunks) >=
+							queueLimit
+					) {
+						// Poll while saturated so cancellation can wake an encoder with no
+						// further dequeue callback pending.
+						await new Promise((resolve) => setTimeout(resolve, 1));
+					}
+					if (isCancelled()) throw new Error("Batch export cancelled");
+					if (muxError) throw new ClipBatchSinkWriteError(muxError.message);
+					if (encoderError) throw encoderError;
 				};
-				const support = await VideoEncoder.isConfigSupported(encoderConfig);
-				if (support.supported) {
-					resolvedCodec = candidate.codec;
-					encoder.configure(encoderConfig);
-					configured = true;
-					break;
-				}
-			}
-			if (!configured) {
-				throw new Error("No supported WebCodecs H.264 encoder for batch export");
-			}
 
-			return {
-				addFrame: async (canvas, timestampUs, durationUs, keyFrame) => {
-					if (muxError) throw muxError;
-					const frame = captureBatchVideoFrame(canvas, timestampUs, durationUs);
-					try {
-						encoder.encode(frame, { keyFrame });
-					} finally {
-						frame.close();
+				let configured = false;
+				for (const candidate of candidates) {
+					if (isCancelled()) throw new Error("Batch export cancelled");
+					const encoderConfig: VideoEncoderConfig = {
+						width: config.width,
+						height: config.height,
+						bitrate: config.bitrate,
+						framerate: config.frameRate,
+						bitrateMode: "variable",
+						codec: candidate.codec,
+						hardwareAcceleration: candidate.hardwareAcceleration,
+						latencyMode: "quality",
+					};
+					const support = await VideoEncoder.isConfigSupported(encoderConfig);
+					if (support.supported) {
+						resolvedCodec = candidate.codec;
+						encoder.configure(encoderConfig);
+						configured = true;
+						break;
 					}
-				},
-				finish: async () => {
-					if (encoder.state === "configured") {
-						await encoder.flush();
-					}
-					await pendingMuxing;
-					if (muxError) return { error: muxError.message };
-					const result = await muxer.finalize();
-					return result.mode === "stream"
-						? { tempFilePath: result.tempFilePath }
-						: { error: "Batch export requires the Electron stream target" };
-				},
-				abort: async () => {
-					try {
-						if (encoder.state === "configured") encoder.close();
-					} catch {
-						/* best-effort */
-					}
-					try {
-						await muxer.abortStream();
-					} finally {
-						muxer.destroy();
-					}
-				},
-			};
+				}
+				if (isCancelled()) throw new Error("Batch export cancelled");
+				if (!configured) {
+					throw new Error("No supported WebCodecs H.264 encoder for batch export");
+				}
+
+				return {
+					addFrame: async (canvas, timestampUs, durationUs, keyFrame) => {
+						await waitForEncodeCapacity();
+						const frame = captureBatchVideoFrame(canvas, timestampUs, durationUs);
+						queuedFrames += 1;
+						try {
+							encoder.encode(frame, { keyFrame });
+						} catch (error) {
+							queuedFrames = Math.max(0, queuedFrames - 1);
+							throw error;
+						} finally {
+							frame.close();
+						}
+					},
+					finish: async () => {
+						try {
+							if (encoder.state === "configured") {
+								await encoder.flush();
+							}
+							await pendingMuxing;
+						} catch (error) {
+							const message = error instanceof Error ? error.message : String(error);
+							return {
+								error: message,
+								errorKind: encoderError ? ("render" as const) : ("write" as const),
+							};
+						}
+						if (encoderError)
+							return { error: encoderError.message, errorKind: "render" as const };
+						if (muxError)
+							return { error: muxError.message, errorKind: "write" as const };
+						try {
+							const result = await muxer.finalize();
+							return result.mode === "stream"
+								? { tempFilePath: result.tempFilePath }
+								: {
+										error: "Batch export requires the Electron stream target",
+										errorKind: "write" as const,
+									};
+						} catch (error) {
+							return {
+								error: error instanceof Error ? error.message : String(error),
+								errorKind: "write" as const,
+							};
+						}
+					},
+					abort: async () => {
+						try {
+							if (encoder.state === "configured") encoder.close();
+						} catch {
+							/* best-effort */
+						}
+						try {
+							await muxer.abortStream();
+						} finally {
+							muxer.destroy();
+						}
+					},
+				};
+			} catch (error) {
+				await cleanupFailedClipBatchSinkInitialization(muxer, createdEncoder);
+				throw error;
+			}
 		},
-		renderClipAudioWav: async (plan) => {
-			if (
-				!config.hasAudio &&
-				(config.sourceAudioFallbackPaths ?? []).length === 0 &&
-				plan.audioOverlays.length === 0
-			) {
+		renderClipAudioWav: async (plan, hasEmbeddedAudio) => {
+			if (!shouldRenderClipAudio(hasEmbeddedAudio, config.sourceAudioFallbackPaths, plan)) {
 				return null;
 			}
 			const audioProcessor = new AudioProcessor();
+			activeAudioProcessor = audioProcessor;
 			// Rebase the clip and its imported overlays onto a clip-local timeline:
 			// the clip plays from output zero, overlays keep their file offsets.
 			const localClip: ClipRegion = {
@@ -815,37 +1088,45 @@ export async function createClipBatchRenderPorts(
 				...(plan.muted ? { muted: true } : {}),
 			};
 			const localAudioRegions = buildClipLocalAudioRegions(plan);
-			return audioProcessor.renderEditedAudioTrack(
-				config.videoUrl,
-				undefined,
-				undefined,
-				localAudioRegions,
-				config.sourceAudioFallbackPaths ?? [],
-				config.sourceAudioFallbackStartDelayMsByPath,
-				plan.sourceAudioTrackSettings,
-				[localClip],
-			);
+			try {
+				return await audioProcessor.renderEditedAudioTrack(
+					config.videoUrl,
+					undefined,
+					undefined,
+					localAudioRegions,
+					config.sourceAudioFallbackPaths ?? [],
+					config.sourceAudioFallbackStartDelayMsByPath,
+					plan.sourceAudioTrackSettings,
+					[localClip],
+				);
+			} finally {
+				if (activeAudioProcessor === audioProcessor) activeAudioProcessor = null;
+			}
 		},
+		cancelAudio: () => activeAudioProcessor?.cancel(),
 		muxClipAudio: async (videoTempPath, wav, plan) => {
-			if (typeof window === "undefined" || !window.electronAPI?.muxExportedVideoAudioFromPath) {
+			if (
+				typeof window === "undefined" ||
+				!window.electronAPI?.muxExportedVideoAudioFromPath
+			) {
 				return { success: false, error: "FFmpeg audio muxing is unavailable" };
 			}
 			const editedAudioData = await wav.arrayBuffer();
-			const result = await window.electronAPI.muxExportedVideoAudioFromPath(
-				videoTempPath,
-				{
-					audioMode: "edited-track",
-					audioSourcePath: null,
-					editedTrackStrategy: "offline-render-fallback",
-					outputDurationSec: plan.outputDurationMs / 1000,
-					editedAudioData,
-					editedAudioMimeType: wav.type || "audio/wav",
-				},
-			);
+			const result = await window.electronAPI.muxExportedVideoAudioFromPath(videoTempPath, {
+				audioMode: "edited-track",
+				audioSourcePath: null,
+				editedTrackStrategy: "offline-render-fallback",
+				outputDurationSec: plan.outputDurationMs / 1000,
+				editedAudioData,
+				editedAudioMimeType: wav.type || "audio/wav",
+			});
 			if (!result.success || !result.tempPath) {
 				return { success: false, error: result.error || "Failed to mux clip audio" };
 			}
 			return { success: true, tempPath: result.tempPath };
+		},
+		discardTemp: async (tempPath) => {
+			await window.electronAPI?.discardExportedTemp?.(tempPath);
 		},
 	};
 }

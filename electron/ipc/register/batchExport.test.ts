@@ -141,10 +141,7 @@ describe("commitBatchClip", () => {
 		const { getSession } = await import("./batchExport");
 		void getSession;
 		const mod = await import("./batchExport");
-		const registerSpy = vi.mocked(
-			(await import("electron")).ipcMain.handle,
-			{ deep: false },
-		);
+		const registerSpy = vi.mocked((await import("electron")).ipcMain.handle, { deep: false });
 		void registerSpy;
 		// Sessions are private; go through the exported handler registration path.
 		// For unit tests we expose commitBatchClip with a session seeded via the
@@ -165,12 +162,13 @@ describe("commitBatchClip", () => {
 			event: unknown,
 			payload: { clipCount: number; sourceBaseName: string },
 		) => Promise<{ success: boolean; batchId?: string; directoryPath?: string }>;
-		const opened = await openHandler(null, {
+		const ipcEvent = { sender: { id: 73 } };
+		const opened = await openHandler(ipcEvent, {
 			clipCount: session.clipCount,
 			sourceBaseName: session.sourceBaseName,
 		});
 		expect(opened.success).toBe(true);
-		return { directory, batchId: opened.batchId! };
+		return { directory, batchId: opened.batchId!, ipcEvent, handlers };
 	}
 
 	const dialogShowOpen = dialog.showOpenDialog as ReturnType<typeof vi.fn>;
@@ -284,21 +282,13 @@ describe("commitBatchClip", () => {
 	});
 
 	it("refuses to publish after cancel and reports a typed cancelled error", async () => {
-		const { directory, batchId } = await seedSession();
+		const { directory, batchId, ipcEvent, handlers } = await seedSession();
 		const temp = await createOwnedTemp(directory, "cancelled-clip", "temp-f.mp4");
-		const handlers = new Map<string, unknown>();
-		((await import("electron")).ipcMain.handle as ReturnType<typeof vi.fn>).mockImplementation(
-			(channel: string, handler: unknown) => {
-				handlers.set(channel, handler);
-			},
-		);
-		const { registerBatchExportHandlers } = await import("./batchExport");
-		registerBatchExportHandlers();
 		const cancelHandler = handlers.get("batch-export-cancel") as (
 			event: unknown,
 			batchId: string,
 		) => Promise<{ success: boolean }>;
-		expect((await cancelHandler(null, batchId)).success).toBe(true);
+		expect((await cancelHandler(ipcEvent, batchId)).success).toBe(true);
 
 		const result = await commitBatchClip({ batchId, tempPath: temp.tempPath, clipIndex: 1 });
 
@@ -310,6 +300,228 @@ describe("commitBatchClip", () => {
 		const remaining = await fs.readdir(directory);
 		expect(remaining.filter((name) => name.endsWith(".mp4"))).toEqual(["temp-f.mp4"]);
 		expect(remaining.some((name) => name.includes("clip-01"))).toBe(false);
+	});
+
+	it("binds commit, cancel, and close IPC actions to the opening WebContents", async () => {
+		const { directory, batchId, handlers } = await seedSession();
+		const stranger = { sender: { id: 999 } };
+		const commitHandler = handlers.get("batch-export-commit") as (
+			event: unknown,
+			payload: { batchId: string; tempPath: string; clipIndex: number },
+		) => Promise<{ success: boolean; error?: string }>;
+		const cancelHandler = handlers.get("batch-export-cancel") as (
+			event: unknown,
+			id: string,
+		) => Promise<{ success: boolean }>;
+		const closeHandler = handlers.get("batch-export-close") as (
+			event: unknown,
+			id: string,
+		) => Promise<{ success: boolean }>;
+		const temp = await createOwnedTemp(directory, "owned", "owned.mp4");
+
+		const commit = await commitHandler(stranger, {
+			batchId,
+			tempPath: temp.tempPath,
+			clipIndex: 1,
+		});
+		expect(commit.success).toBe(false);
+		expect(commit.error).toContain("unauthorized");
+		expect((await cancelHandler(stranger, batchId)).success).toBe(false);
+		expect((await closeHandler(stranger, batchId)).success).toBe(false);
+	});
+
+	it("treats an in-flight atomic publication as the winner, then blocks later commits on cancel", async () => {
+		const { directory, batchId, ipcEvent, handlers } = await seedSession({ clipCount: 2 });
+		const firstTemp = await createOwnedTemp(directory, "winner", "winner.mp4");
+		const secondTemp = await createOwnedTemp(directory, "later", "later.mp4");
+		let signalStarted!: () => void;
+		let finishPublication!: () => void;
+		const publicationStarted = new Promise<void>((resolve) => (signalStarted = resolve));
+		const releasePublication = new Promise<void>((resolve) => (finishPublication = resolve));
+		const cancelHandler = handlers.get("batch-export-cancel") as (
+			event: unknown,
+			id: string,
+		) => Promise<{ success: boolean }>;
+
+		const publication = commitBatchClip(
+			{ batchId, tempPath: firstTemp.tempPath, clipIndex: 1 },
+			{
+				pathExists: async () => false,
+				commitFile: async (source, destination) => {
+					signalStarted();
+					await releasePublication;
+					await commitFileNoClobber(source, destination);
+				},
+			},
+		);
+		await publicationStarted;
+		expect((await cancelHandler(ipcEvent, batchId)).success).toBe(true);
+		finishPublication();
+
+		const committed = await publication;
+		expect(committed.success).toBe(true);
+		if (!committed.success) return;
+		await expect(fs.readFile(committed.path, "utf8")).resolves.toBe("winner");
+
+		const later = await commitBatchClip({
+			batchId,
+			tempPath: secondTemp.tempPath,
+			clipIndex: 2,
+		});
+		expect(later.success).toBe(false);
+		if (!later.success) expect(later.errorKind).toBe("cancelled");
+		await expect(fs.access(secondTemp.tempPath)).resolves.toBeUndefined();
+	});
+
+	it("closes a terminal session owned by the same WebContents", async () => {
+		const { batchId, ipcEvent, handlers } = await seedSession();
+		const closeHandler = handlers.get("batch-export-close") as (
+			event: unknown,
+			id: string,
+		) => Promise<{ success: boolean }>;
+		expect((await closeHandler(ipcEvent, batchId)).success).toBe(true);
+		const missing = await commitBatchClip({
+			batchId,
+			tempPath: "unused",
+			clipIndex: 1,
+		});
+		expect(missing.success).toBe(false);
+		if (!missing.success) expect(missing.error).toContain("Unknown batch");
+	});
+
+	it("binds commit, cancel, and close to the opening WebContents", async () => {
+		const { directory, batchId, ipcEvent, handlers } = await seedSession();
+		const temp = await createOwnedTemp(directory, "owner-bound", "temp-owner.mp4");
+		const commitHandler = handlers.get("batch-export-commit") as (
+			event: { sender: { id: number } },
+			payload: { batchId: string; tempPath: string; clipIndex: number },
+		) => Promise<{ success: boolean; error?: string }>;
+		const cancelHandler = handlers.get("batch-export-cancel") as (
+			event: { sender: { id: number } },
+			id: string,
+		) => { success: boolean };
+		const closeHandler = handlers.get("batch-export-close") as (
+			event: { sender: { id: number } },
+			id: string,
+		) => { success: boolean };
+		const stranger = { sender: { id: ipcEvent.sender.id + 1 } };
+		const commit = await commitHandler(stranger, {
+			batchId,
+			tempPath: temp.tempPath,
+			clipIndex: 1,
+		});
+		expect(commit.success).toBe(false);
+		expect(commit.error).toContain("unauthorized");
+		expect(cancelHandler(stranger, batchId).success).toBe(false);
+		expect(closeHandler(stranger, batchId).success).toBe(false);
+		// Original owner can still close the session.
+		expect(closeHandler(ipcEvent, batchId).success).toBe(true);
+	});
+
+	it("lets cancellation win while the name preflight is pending", async () => {
+		const { directory, batchId, ipcEvent, handlers } = await seedSession();
+		const temp = await createOwnedTemp(
+			directory,
+			"cancel-before-publish",
+			"temp-preflight.mp4",
+		);
+		const cancelHandler = handlers.get("batch-export-cancel") as (
+			event: unknown,
+			id: string,
+		) => { success: boolean };
+		let preflightStarted!: () => void;
+		const started = new Promise<void>((resolve) => (preflightStarted = resolve));
+		let releasePreflight!: () => void;
+		const gate = new Promise<void>((resolve) => (releasePreflight = resolve));
+		const commitPromise = commitBatchClip(
+			{ batchId, tempPath: temp.tempPath, clipIndex: 1 },
+			{
+				pathExists: async () => {
+					preflightStarted();
+					await gate;
+					return false;
+				},
+			},
+		);
+		await started;
+		expect(cancelHandler(ipcEvent, batchId).success).toBe(true);
+		releasePreflight();
+		const result = await commitPromise;
+		expect(result.success).toBe(false);
+		if (result.success) return;
+		expect(result.errorKind).toBe("cancelled");
+		await expect(fs.readdir(directory)).resolves.toEqual(["temp-preflight.mp4"]);
+	});
+
+	it("counts an atomic publication already in flight as complete when cancel races it", async () => {
+		const { directory, batchId, ipcEvent, handlers } = await seedSession();
+		const temp = await createOwnedTemp(directory, "commit-wins", "temp-race.mp4");
+		const cancelHandler = handlers.get("batch-export-cancel") as (
+			event: unknown,
+			id: string,
+		) => { success: boolean };
+		const actualLink = fs.link.bind(fs);
+		let publicationStarted!: () => void;
+		const started = new Promise<void>((resolve) => (publicationStarted = resolve));
+		let releasePublication!: () => void;
+		const gate = new Promise<void>((resolve) => (releasePublication = resolve));
+		const linkSpy = vi.spyOn(fs, "link").mockImplementation(async (source, destination) => {
+			if (destination.endsWith("my-recording-clip-01.mp4")) {
+				publicationStarted();
+				await gate;
+			}
+			return actualLink(source, destination);
+		});
+		const commitPromise = commitBatchClip({ batchId, tempPath: temp.tempPath, clipIndex: 1 });
+		await started;
+		expect(cancelHandler(ipcEvent, batchId).success).toBe(true);
+		releasePublication();
+		const result = await commitPromise;
+		linkSpy.mockRestore();
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(await fs.readFile(result.path, "utf8")).toBe("commit-wins");
+		// The pending cancellation prevents a subsequent clip publication.
+		const nextTemp = await createOwnedTemp(directory, "must-not-publish", "temp-next.mp4");
+		const next = await commitBatchClip({ batchId, tempPath: nextTemp.tempPath, clipIndex: 2 });
+		expect(next.success).toBe(false);
+		if (!next.success) expect(next.errorKind).toBe("cancelled");
+	});
+
+	it("closes a terminal batch session after its final expected clip", async () => {
+		const { directory, batchId } = await seedSession({ clipCount: 1 });
+		const temp = await createOwnedTemp(directory, "terminal", "temp-terminal.mp4");
+		const result = await commitBatchClip({ batchId, tempPath: temp.tempPath, clipIndex: 1 });
+		expect(result.success).toBe(true);
+		const { getSession } = await import("./batchExport");
+		expect(getSession(batchId)).toBeNull();
+	});
+
+	it("falls back to exclusive copy for a sidecar on a no-hardlink volume", async () => {
+		const { directory, batchId } = await seedSession({ clipCount: 1 });
+		const temp = await createOwnedTemp(directory, "sidecar-fallback", "temp-sidecar.mp4");
+		const actualLink = fs.link.bind(fs);
+		const linkSpy = vi.spyOn(fs, "link").mockImplementation(async (source, destination) => {
+			if (destination.endsWith(".srt")) {
+				const error = new Error("hard links unsupported") as NodeJS.ErrnoException;
+				error.code = "EPERM";
+				throw error;
+			}
+			return actualLink(source, destination);
+		});
+		const result = await commitBatchClip({
+			batchId,
+			tempPath: temp.tempPath,
+			clipIndex: 1,
+			captionSidecar: { format: "srt", cues: [{ startMs: 0, endMs: 200, text: "cue" }] },
+		});
+		linkSpy.mockRestore();
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.sidecarWarning).toBeNull();
+		await expect(
+			fs.readFile(path.join(directory, "my-recording-clip-01.srt"), "utf8"),
+		).resolves.toBe(serializeSrt([{ startMs: 0, endMs: 200, text: "cue" }]));
 	});
 
 	it("rejects unowned temp paths and missing temp files with typed write errors", async () => {

@@ -248,6 +248,13 @@
 		"resultSummary": "{{completed}} sur {{total}} clips enregistrés.",
 		"sidecarWarning": "{{count}} clip(s) enregistré(s) sans fichiers de sous-titres.",
 		"clipFailed": "Clip {{index}} : {{error}}",
-		"retryFailed": "Réessayer les clips en échec"
+		"retryFailed": "Réessayer les clips en échec",
+		"skippedSummary": "{{count}} clips invalides ignorés.",
+		"clipSkipped": "Clip {{index}} ({{id}}) : {{reason}}",
+		"skipReasonInvalidBounds": "Limites de timeline invalides",
+		"skipReasonInvalidSpeed": "Vitesse de lecture invalide",
+		"skipReasonOutsideSource": "La plage source est hors de l’enregistrement",
+		"sidecarClipWarning": "Avertissement du fichier de sous-titres du clip {{index}} : {{message}}",
+		"notPublishedAfterWriteFailure": "Non enregistré car l’écriture d’un clip précédent a échoué"
 	}
 }

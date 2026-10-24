@@ -248,6 +248,13 @@
 		"resultSummary": "{{completed}} de {{total}} clipes salvos.",
 		"sidecarWarning": "{{count}} clipe(s) salvos sem arquivos de legenda.",
 		"clipFailed": "Clipe {{index}}: {{error}}",
-		"retryFailed": "Tentar novamente os clipes com falha"
+		"retryFailed": "Tentar novamente os clipes com falha",
+		"skippedSummary": "{{count}} clipe(s) inválido(s) ignorado(s).",
+		"clipSkipped": "Clipe {{index}} ({{id}}): {{reason}}",
+		"skipReasonInvalidBounds": "Limites da linha do tempo inválidos",
+		"skipReasonInvalidSpeed": "Velocidade de reprodução inválida",
+		"skipReasonOutsideSource": "Intervalo de origem fora da gravação",
+		"sidecarClipWarning": "Aviso do arquivo de legenda do clipe {{index}}: {{message}}",
+		"notPublishedAfterWriteFailure": "Não publicado porque um clipe anterior falhou ao salvar"
 	}
 }

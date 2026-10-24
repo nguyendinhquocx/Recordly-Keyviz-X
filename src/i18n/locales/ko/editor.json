@@ -248,6 +248,13 @@
 		"resultSummary": "{{total}}개 중 {{completed}}개 클립이 저장되었습니다.",
 		"sidecarWarning": "{{count}}개 클립이 자막 파일 없이 저장되었습니다.",
 		"clipFailed": "클립 {{index}}: {{error}}",
-		"retryFailed": "실패한 클립 다시 시도"
+		"retryFailed": "실패한 클립 다시 시도",
+		"skippedSummary": "유효하지 않은 클립 {{count}}개를 건너뛰었습니다.",
+		"clipSkipped": "클립 {{index}} ({{id}}): {{reason}}",
+		"skipReasonInvalidBounds": "잘못된 타임라인 범위",
+		"skipReasonInvalidSpeed": "잘못된 재생 속도",
+		"skipReasonOutsideSource": "소스 범위가 녹화 파일을 벗어났습니다",
+		"sidecarClipWarning": "클립 {{index}} 자막 파일 경고: {{message}}",
+		"notPublishedAfterWriteFailure": "이전 클립 저장에 실패하여 게시되지 않았습니다"
 	}
 }

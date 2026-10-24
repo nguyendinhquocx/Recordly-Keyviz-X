@@ -29,6 +29,49 @@ import {
 } from "./audioProcessorShared";
 import type { VideoMuxer } from "./muxer";
 
+export type AudioRegionWithSourceOffset = AudioRegion & { sourceOffsetMs?: number };
+
+export interface AudioRegionChunkSchedule {
+	outputStartSec: number;
+	bufferOffsetSec: number;
+	durationSec: number;
+}
+
+/**
+ * Compute one imported overlay's exact placement in an offline audio chunk.
+ * `sourceOffsetMs` is independent from its clip-local output position: when a
+ * clip starts 500ms into the imported file, output starts at U=0 while buffer
+ * playback starts at 0.5s. Chunk clipping advances the buffer offset as well.
+ */
+export function computeAudioRegionChunkSchedule(params: {
+	region: AudioRegionWithSourceOffset;
+	outputStartMs: number;
+	outputEndMs: number;
+	bufferDurationSec: number;
+	chunkOutputStartSec: number;
+	chunkDurationSec: number;
+}): AudioRegionChunkSchedule | null {
+	let outputStartSec = params.outputStartMs / 1000 - params.chunkOutputStartSec;
+	let outputEndSec = params.outputEndMs / 1000 - params.chunkOutputStartSec;
+	if (outputEndSec <= 0 || outputStartSec >= params.chunkDurationSec) return null;
+
+	let bufferOffsetSec = Math.max(0, params.region.sourceOffsetMs ?? 0) / 1000;
+	if (outputStartSec < 0) {
+		bufferOffsetSec += -outputStartSec;
+		outputStartSec = 0;
+	}
+	if (outputEndSec > params.chunkDurationSec) {
+		outputEndSec = params.chunkDurationSec;
+	}
+
+	const durationSec = Math.min(
+		outputEndSec - outputStartSec,
+		params.bufferDurationSec - bufferOffsetSec,
+	);
+	if (durationSec <= 0.001) return null;
+	return { outputStartSec, bufferOffsetSec, durationSec };
+}
+
 export class OfflineAudioProcessor extends AudioMediaProcessor {
 	protected async renderAndMuxOfflineAudio(
 		videoUrl: string,
@@ -390,24 +433,17 @@ export class OfflineAudioProcessor extends AudioMediaProcessor {
 			? region.endMs
 			: this.sourceTimeToOutputTime(region.endMs, slices);
 
-		let localStartSec = outputStartMs / 1000 - chunkOutputStartSec;
-		let localEndSec = outputEndMs / 1000 - chunkOutputStartSec;
-
-		// Skip if region doesn't overlap with this chunk
-		if (localEndSec <= 0 || localStartSec >= chunkDurationSec) return;
-
-		// Clip to chunk bounds
-		let bufferOffsetSec = 0;
-		if (localStartSec < 0) {
-			bufferOffsetSec = -localStartSec;
-			localStartSec = 0;
-		}
-		if (localEndSec > chunkDurationSec) {
-			localEndSec = chunkDurationSec;
-		}
-
-		const duration = Math.min(localEndSec - localStartSec, buffer.duration - bufferOffsetSec);
-		if (duration <= 0.001) return;
+		// Separate-clips overlays retain sourceOffsetMs independently from their
+		// output placement; chunk clipping advances both clocks together.
+		const schedule = computeAudioRegionChunkSchedule({
+			region: region as AudioRegionWithSourceOffset,
+			outputStartMs,
+			outputEndMs,
+			bufferDurationSec: buffer.duration,
+			chunkOutputStartSec,
+			chunkDurationSec,
+		});
+		if (!schedule) return;
 
 		const gainNode = ctx.createGain();
 		const normalizeGain = region.normalize ? SOURCE_AUDIO_NORMALIZE_GAIN : 1;
@@ -417,7 +453,7 @@ export class OfflineAudioProcessor extends AudioMediaProcessor {
 		const source = ctx.createBufferSource();
 		source.buffer = buffer;
 		source.connect(gainNode);
-		source.start(localStartSec, bufferOffsetSec, duration);
+		source.start(schedule.outputStartSec, schedule.bufferOffsetSec, schedule.durationSec);
 	}
 
 	// Feed a rendered AudioBuffer chunk to an AudioEncoder with a timestamp offset.

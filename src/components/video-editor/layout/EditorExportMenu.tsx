@@ -14,7 +14,7 @@ import { ExportSettingsMenu } from "../ExportSettingsMenu";
 import type { useExportDimensions } from "../export/useExportDimensions";
 import type { useExportSession } from "../export/useExportSession";
 import type { useExportSettings } from "../export/useExportSettings";
-import type { BatchClipExportController } from "../export/useBatchClipExport";
+import type { BatchClipExportController, BatchRetryRequest } from "../export/useBatchClipExport";
 import type { useExportStatusViewModel } from "../export/useExportStatusViewModel";
 
 type Props = {
@@ -36,10 +36,7 @@ type Props = {
 	revealExportedFile: () => void;
 	exportMessage: string | null;
 	batchExport: BatchClipExportController & {
-		handleStartBatchExport: (retry?: {
-			onlyClipIds: string[];
-			retainedTemps: Record<string, string>;
-		}) => Promise<void>;
+		handleStartBatchExport: (retry?: BatchRetryRequest) => Promise<void>;
 	};
 	projectTitle: string;
 	prepareExportForShare: () => Promise<string | undefined>;
@@ -70,12 +67,20 @@ export function EditorExportMenu(props: Props) {
 		return () => observer.disconnect();
 	}, [props.exportSession.showExportDropdown]);
 	useEffect(() => {
-		if (props.shareRequestNonce > handledShareRequest.current) {
+		if (
+			props.shareRequestNonce > handledShareRequest.current &&
+			!props.batchExport.isBatchExporting
+		) {
 			handledShareRequest.current = props.shareRequestNonce;
 			setDestination("link");
 			props.handleOpenExportDropdown();
 		}
-	}, [props.shareRequestNonce, props.handleOpenExportDropdown, setDestination]);
+	}, [
+		props.shareRequestNonce,
+		props.handleOpenExportDropdown,
+		props.batchExport.isBatchExporting,
+		setDestination,
+	]);
 
 	const {
 		t,
@@ -124,10 +129,7 @@ export function EditorExportMenu(props: Props) {
 		exportedFilePath,
 		hasPendingExportSave,
 	} = exportSession;
-	const {
-		exportMode,
-		setExportMode,
-	} = exportSettings;
+	const { exportMode, setExportMode } = exportSettings;
 	const {
 		isBatchExporting,
 		batchProgress,
@@ -181,27 +183,24 @@ export function EditorExportMenu(props: Props) {
 			mp4OutputDimensions={mp4OutputDimensions}
 			gifOutputDimensions={gifOutputDimensions}
 			onExport={
-				batchModeActive && !batchFormatBlocked
-					? () => void handleStartBatchExport()
+				batchModeActive
+					? batchFormatBlocked
+						? undefined
+						: () => void handleStartBatchExport()
 					: handleStartExportFromDropdown
 			}
 			exportActionLabel={
 				batchModeActive && !batchFormatBlocked
 					? validClipCount > 1
-						? t(
-								"editor.exportActions.exportSeparateClips",
-								"Export {{count}} clips",
-								{ count: validClipCount },
-							)
+						? t("editor.exportActions.exportSeparateClips", "Export {{count}} clips", {
+								count: validClipCount,
+							})
 						: validClipCount === 1
-							? t(
-									"editor.exportActions.exportSeparateClipsOne",
-									"Export 1 clip",
-								)
+							? t("editor.exportActions.exportSeparateClipsOne", "Export 1 clip")
 							: t("editor.exportActions.noValidClips", "No valid clips to export")
 					: undefined
 			}
-			exportActionDisabled={batchModeActive && !batchFormatBlocked && validClipCount === 0}
+			exportActionDisabled={batchModeActive && (batchFormatBlocked || validClipCount === 0)}
 			exportActionHint={
 				batchModeActive && !batchFormatBlocked && validClipCount === 0
 					? t(
@@ -222,7 +221,7 @@ export function EditorExportMenu(props: Props) {
 			<Popover
 				open={showExportDropdown}
 				onOpenChange={(open) => {
-					if (shareBusy) return;
+					if (shareBusy || isBatchExporting) return;
 					if (open) {
 						handleOpenExportDropdown();
 					} else setShowExportDropdown(false);
@@ -266,6 +265,7 @@ export function EditorExportMenu(props: Props) {
 											keys !== "all" &&
 											keys.size > 0 &&
 											!isExporting &&
+											!isBatchExporting &&
 											!shareBusy
 										)
 											setDestination(keys.has("link") ? "link" : "local");
@@ -274,7 +274,9 @@ export function EditorExportMenu(props: Props) {
 									<TagGroup.List className="flex gap-2">
 										<Tag
 											id="link"
-											isDisabled={isExporting || shareBusy}
+											isDisabled={
+												isExporting || isBatchExporting || shareBusy
+											}
 											className="h-24 flex-1 flex-col justify-center gap-2 rounded-xl border border-foreground/10"
 										>
 											<LinkSimple className="size-6" />
@@ -282,7 +284,9 @@ export function EditorExportMenu(props: Props) {
 										</Tag>
 										<Tag
 											id="local"
-											isDisabled={isExporting || shareBusy}
+											isDisabled={
+												isExporting || isBatchExporting || shareBusy
+											}
 											className="h-24 flex-1 flex-col justify-center gap-2 rounded-xl border border-foreground/10"
 										>
 											<HardDrive className="size-6" />
@@ -293,10 +297,7 @@ export function EditorExportMenu(props: Props) {
 								{destination === "local" && (
 									<div className="space-y-1.5">
 										<TagGroup
-											aria-label={t(
-												"editor.exportMode.title",
-												"Output",
-											)}
+											aria-label={t("editor.exportMode.title", "Output")}
 											selectionMode="single"
 											disallowEmptySelection
 											selectedKeys={[exportMode]}
@@ -356,7 +357,9 @@ export function EditorExportMenu(props: Props) {
 											</p>
 										) : null}
 										{batchError && !isBatchExporting && !batchSummary ? (
-											<p className="text-[11px] text-destructive">{batchError}</p>
+											<p className="text-[11px] text-destructive">
+												{batchError}
+											</p>
 										) : null}
 									</div>
 								)}
@@ -486,11 +489,18 @@ export function EditorExportMenu(props: Props) {
 														"Exporting clips",
 													)}
 												</p>
-												<p className="text-xs text-muted-foreground" aria-live="polite">
-													{t("editor.batchExport.progress", "{{current}} of {{total}} clips", {
-														current: batchProgress?.current ?? 0,
-														total: batchProgress?.total ?? 0,
-													})}
+												<p
+													className="text-xs text-muted-foreground"
+													aria-live="polite"
+												>
+													{t(
+														"editor.batchExport.progress",
+														"{{current}} of {{total}} clips",
+														{
+															current: batchProgress?.current ?? 0,
+															total: batchProgress?.total ?? 0,
+														},
+													)}
 												</p>
 											</div>
 											<Button
@@ -503,10 +513,15 @@ export function EditorExportMenu(props: Props) {
 											</Button>
 										</div>
 										<ProgressBar
-											aria-label={t("editor.batchExport.exporting", "Exporting clips")}
+											aria-label={t(
+												"editor.batchExport.exporting",
+												"Exporting clips",
+											)}
 											value={
 												batchProgress && batchProgress.total > 0
-													? (batchProgress.current / batchProgress.total) * 100
+													? (batchProgress.current /
+															batchProgress.total) *
+														100
 													: 0
 											}
 										>
@@ -517,20 +532,32 @@ export function EditorExportMenu(props: Props) {
 									</Card>
 								) : destination === "local" && batchSummary ? (
 									<Card className="rounded-none bg-transparent p-5 text-foreground shadow-none">
-										<p className="text-sm font-semibold text-foreground" role="status">
+										<p
+											className="text-sm font-semibold text-foreground"
+											role="status"
+										>
 											{batchSummary.cancelled
-												? t("editor.batchExport.cancelledTitle", "Export cancelled")
+												? t(
+														"editor.batchExport.cancelledTitle",
+														"Export cancelled",
+													)
 												: batchSummary.failedCount > 0
 													? t(
 															"editor.batchExport.partialTitle",
 															"Export finished with issues",
 														)
-													: t("editor.batchExport.completeTitle", "All clips exported")}
+													: t(
+															"editor.batchExport.completeTitle",
+															"All clips exported",
+														)}
 										</p>
-										<p className="mt-1 text-xs text-muted-foreground" aria-live="polite">
+										<p
+											className="mt-1 text-xs text-muted-foreground"
+											aria-live="polite"
+										>
 											{t(
 												"editor.batchExport.resultSummary",
-												"{completed} of {total} clips saved.",
+												"{{completed}} of {{total}} clips saved.",
 												{
 													completed: batchSummary.completedCount,
 													total: batchSummary.items.filter(
@@ -539,6 +566,60 @@ export function EditorExportMenu(props: Props) {
 												},
 											)}
 										</p>
+										{batchSummary.skippedCount > 0 ? (
+											<>
+												<p className="mt-1 text-[11px] text-muted-foreground">
+													{t(
+														"editor.batchExport.skippedSummary",
+														"Skipped {{count}} invalid clip(s).",
+														{
+															count: batchSummary.skippedCount,
+														},
+													)}
+												</p>
+												{batchSummary.items
+													.filter((item) => item.status === "skipped")
+													.map((item) => {
+														const reason =
+															item.skipReason ?? "invalid-bounds";
+														const reasonKey = {
+															"invalid-bounds":
+																"editor.batchExport.skipReasonInvalidBounds",
+															"invalid-speed":
+																"editor.batchExport.skipReasonInvalidSpeed",
+															"outside-source":
+																"editor.batchExport.skipReasonOutsideSource",
+														}[reason];
+														const fallback = {
+															"invalid-bounds":
+																"Invalid timeline bounds",
+															"invalid-speed":
+																"Invalid playback speed",
+															"outside-source":
+																"Source range is outside the recording",
+														}[reason];
+														return (
+															<p
+																key={item.clipId}
+																className="mt-1 text-[11px] text-muted-foreground/80"
+															>
+																{t(
+																	"editor.batchExport.clipSkipped",
+																	"Clip {{index}} ({{id}}): {{reason}}",
+																	{
+																		index: item.clipIndex,
+																		id: item.clipId,
+																		reason: t(
+																			reasonKey,
+																			fallback,
+																		),
+																	},
+																)}
+															</p>
+														);
+													})}
+											</>
+										) : null}
 										{batchSummary.sidecarWarningCount > 0 ? (
 											<p className="mt-1 text-[11px] text-amber-500/80">
 												{t(
@@ -549,9 +630,27 @@ export function EditorExportMenu(props: Props) {
 											</p>
 										) : null}
 										{batchSummary.items
+											.filter((item) => Boolean(item.sidecarWarning))
+											.map((item) => (
+												<p
+													key={`sidecar-${item.clipId}`}
+													className="mt-1 text-[11px] text-amber-500/80"
+												>
+													{t(
+														"editor.batchExport.sidecarClipWarning",
+														"Clip {{index}} caption sidecar warning: {{message}}",
+														{
+															index: item.clipIndex,
+															message: item.sidecarWarning ?? "",
+														},
+													)}
+												</p>
+											))}
+										{batchSummary.items
 											.filter(
 												(item) =>
-													item.status === "render-error" || item.status === "write-error",
+													item.status === "render-error" ||
+													item.status === "write-error",
 											)
 											.slice(0, 3)
 											.map((item) => (
@@ -559,10 +658,14 @@ export function EditorExportMenu(props: Props) {
 													key={item.clipId}
 													className="mt-1 select-text break-words text-[11px] text-muted-foreground/80"
 												>
-													{t("editor.batchExport.clipFailed", "Clip {{index}}: {{error}}", {
-														index: item.clipIndex,
-														error: item.error ?? "",
-													})}
+													{t(
+														"editor.batchExport.clipFailed",
+														"Clip {{index}}: {{error}}",
+														{
+															index: item.clipIndex,
+															error: item.error ?? "",
+														},
+													)}
 												</p>
 											))}
 										<div className="mt-4 flex gap-2">
@@ -570,28 +673,38 @@ export function EditorExportMenu(props: Props) {
 												<Button
 													type="button"
 													onClick={() => {
-														const failedItems = batchSummary.items.filter(
-															(item) =>
-																item.status === "render-error" ||
-																item.status === "write-error",
-														);
-														const retainedTemps: Record<string, string> = {};
+														const failedItems =
+															batchSummary.items.filter(
+																(item) =>
+																	item.status ===
+																		"render-error" ||
+																	item.status === "write-error",
+															);
+														const retainedTemps: Record<
+															string,
+															string
+														> = {};
 														const onlyClipIds: string[] = [];
 														for (const item of failedItems) {
 															onlyClipIds.push(item.clipId);
 															if (item.retainedTempPath) {
-																retainedTemps[item.clipId] = item.retainedTempPath;
+																retainedTemps[item.clipId] =
+																	item.retainedTempPath;
 															}
 														}
-														dismissBatchResult();
+
 														void handleStartBatchExport({
 															onlyClipIds,
 															retainedTemps,
+															previousItems: batchSummary.items,
 														});
 													}}
 													className="h-8 flex-1 text-xs"
 												>
-													{t("editor.batchExport.retryFailed", "Retry failed clips")}
+													{t(
+														"editor.batchExport.retryFailed",
+														"Retry failed clips",
+													)}
 												</Button>
 											) : null}
 											<Button

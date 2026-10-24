@@ -34,10 +34,7 @@ import {
  * - Sidecar cues are projected into clip-local output time U in [0, duration].
  */
 
-export type ClipExportSkipReason =
-	| "invalid-bounds"
-	| "invalid-speed"
-	| "outside-source";
+export type ClipExportSkipReason = "invalid-bounds" | "invalid-speed" | "outside-source";
 
 export interface ClipExportSkipEntry {
 	clipId: string;
@@ -67,7 +64,6 @@ export interface ClipExportSidecarCue {
 	startMs: number;
 	endMs: number;
 	text: string;
-	words?: Array<{ text: string; startMs: number; endMs: number; leadingSpace?: boolean }>;
 }
 
 export interface ClipExportPlan {
@@ -143,10 +139,7 @@ function isFiniteNumber(value: number | undefined): value is number {
 	return typeof value === "number" && Number.isFinite(value);
 }
 
-function getClipValidity(
-	clip: ClipRegion,
-	sourceDurationMs: number,
-): ClipExportSkipReason | null {
+function getClipValidity(clip: ClipRegion, sourceDurationMs: number): ClipExportSkipReason | null {
 	const { startMs, endMs } = clip;
 	if (!isFiniteNumber(startMs) || !isFiniteNumber(endMs) || endMs <= startMs) {
 		return "invalid-bounds";
@@ -218,11 +211,7 @@ function selectAnnotationsForClip(
  * its words) with [S0, S1) using half-open bounds so a boundary cue is not
  * duplicated across neighbouring clips.
  */
-function sliceCaptionsToSourceWindow(
-	cues: CaptionCue[],
-	S0: number,
-	S1: number,
-): CaptionCue[] {
+function sliceCaptionsToSourceWindow(cues: CaptionCue[], S0: number, S1: number): CaptionCue[] {
 	const sliced: CaptionCue[] = [];
 	for (const cue of cues) {
 		if (!isFiniteNumber(cue.startMs) || !isFiniteNumber(cue.endMs)) continue;
@@ -270,28 +259,7 @@ function projectSidecarCues(
 			Math.min(outputDurationMs, Math.round((sourceEnd - S0) / speed)),
 		);
 		if (endMs <= startMs) continue;
-		const words = cue.words
-			?.map((word) => {
-				if (!isFiniteNumber(word.startMs) || !isFiniteNumber(word.endMs)) return null;
-				const wordStart = Math.max(word.startMs, sourceStart);
-				const wordEnd = Math.min(word.endMs, sourceEnd);
-				if (wordEnd <= wordStart) return null;
-				return {
-					text: word.text,
-					startMs: Math.max(0, Math.min(outputDurationMs, Math.round((wordStart - S0) / speed))),
-					endMs: Math.max(0, Math.min(outputDurationMs, Math.round((wordEnd - S0) / speed))),
-					...(word.leadingSpace === undefined
-						? {}
-						: { leadingSpace: word.leadingSpace }),
-				};
-			})
-			.filter((word): word is NonNullable<typeof word> => word !== null);
-		projected.push({
-			startMs,
-			endMs,
-			text: cue.text,
-			...(words && words.length > 0 ? { words } : {}),
-		});
+		projected.push({ startMs, endMs, text: cue.text });
 	}
 	return projected;
 }
@@ -326,11 +294,11 @@ function sliceAudioOverlaysForClip(
 	return overlays;
 }
 
-export function buildClipExportPlans(
-	input: BuildClipExportPlansInput,
-): BuildClipExportPlansResult {
+export function buildClipExportPlans(input: BuildClipExportPlansInput): BuildClipExportPlansResult {
 	const fps = safeFps(input.fps);
-	const sourceDurationMs = Math.max(0, input.sourceDurationMs);
+	const sourceDurationMs = Number.isFinite(input.sourceDurationMs)
+		? Math.max(0, input.sourceDurationMs)
+		: 0;
 	const zoomContextMs =
 		input.zoomContextMs !== undefined && Number.isFinite(input.zoomContextMs)
 			? input.zoomContextMs
@@ -382,16 +350,22 @@ export function buildClipExportPlans(
 			sidecarCues: projectSidecarCues(captionCues, S0, speed, outputDurationMs),
 			audioOverlays: sliceAudioOverlaysForClip(audioRegions, T0, T1),
 			webcam: input.webcam ?? null,
-			frameIndexToTimelineMs: (frameIndex) =>
-				((firstFrame + frameIndex) / fps) * 1000,
-			timelineMsToSourceMs: (timelineMs) =>
-				Math.round(S0 + (timelineMs - T0) * speed),
+			frameIndexToTimelineMs: (frameIndex) => ((firstFrame + frameIndex) / fps) * 1000,
+			timelineMsToSourceMs: (timelineMs) => Math.round(S0 + (timelineMs - T0) * speed),
 			frameIndexToSourceMs: (frameIndex) =>
 				Math.round(S0 + (((firstFrame + frameIndex) / fps) * 1000 - T0) * speed),
-			frameIndexToOutputMs: (frameIndex) =>
-				((firstFrame + frameIndex) / fps) * 1000 - T0,
+			frameIndexToOutputMs: (frameIndex) => ((firstFrame + frameIndex) / fps) * 1000 - T0,
 		});
 	});
 
 	return { plans, skipped };
+}
+
+/** Select only the original ClipRegion objects represented by valid plans. */
+export function getClipRegionsForPlans(clips: ClipRegion[], plans: ClipExportPlan[]): ClipRegion[] {
+	const clipsById = new Map(clips.map((clip) => [clip.id, clip]));
+	return plans.flatMap((plan) => {
+		const clip = clipsById.get(plan.clipId);
+		return clip ? [clip] : [];
+	});
 }

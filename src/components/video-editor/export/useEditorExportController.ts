@@ -7,12 +7,9 @@ import type { useTimelineState } from "../state/useTimelineState";
 import type { CursorTelemetryPoint, SpeedRegion, ZoomRegion } from "../types";
 import type { VideoPlaybackRef } from "../VideoPlayback";
 import { getMp4ExportBitrate } from "@/lib/exporter/exportBitrate";
-import {
-	ClipBatchExporter,
-	createClipBatchRenderPorts,
-} from "@/lib/exporter/clipBatchExporter";
+import { ClipBatchExporter, createClipBatchRenderPorts } from "@/lib/exporter/clipBatchExporter";
 import { DEFAULT_MP4_CODEC } from "@/lib/exporter/mp4Support";
-import { buildClipExportPlans } from "./clipExportPlan";
+import { buildClipExportPlans, getClipRegionsForPlans } from "./clipExportPlan";
 import { calculateMp4ExportDimensions } from "../exportDimensions";
 import { useBatchClipExport } from "./useBatchClipExport";
 import { useExportDialogActions } from "./useExportDialogActions";
@@ -109,7 +106,15 @@ export function useEditorExportController(input: Input) {
 					input.audio.getSourceAudioTrackSettingsForClip(clipId),
 				webcam: input.appearance.webcam,
 			}),
-		createBatch: async (plans, settings, hooks) => {
+		includeCaptionSidecar: Boolean(
+			input.settings.includeCaptionSidecar && input.captionSidecarPayload,
+		),
+		sidecarFormat: input.captionSidecarPayload?.format,
+		createBatch: async (plans, replayPlans, settings, hooks) => {
+			const validClipRegions = getClipRegionsForPlans(
+				input.timeline.clipRegions,
+				replayPlans,
+			);
 			const { quality, encodingMode, selectedMp4FrameRate } = resolveMp4ExportSettings({
 				smokeExportConfig: { enabled: false },
 				settings,
@@ -141,7 +146,7 @@ export function useEditorExportController(input: Input) {
 				bitrate,
 				codec: DEFAULT_MP4_CODEC,
 				encodingMode,
-				clipRegions: input.timeline.clipRegions,
+				clipRegions: validClipRegions,
 				trimRegions: input.timeline.trimRegions,
 				speedRegions: input.effectiveSpeedRegions,
 				wallpaper: appearance.wallpaper,
@@ -166,7 +171,9 @@ export function useEditorExportController(input: Input) {
 				webcam: appearance.webcam,
 				webcamUrl:
 					appearance.resolvedWebcamVideoUrl ??
-					(appearance.webcam.sourcePath ? `file://${appearance.webcam.sourcePath}` : null),
+					(appearance.webcam.sourcePath
+						? `file://${appearance.webcam.sourcePath}`
+						: null),
 				annotationRegions: input.timeline.annotationRegions,
 				autoCaptions: input.timeline.autoCaptions,
 				autoCaptionSettings: input.timeline.autoCaptionSettings,
@@ -179,15 +186,15 @@ export function useEditorExportController(input: Input) {
 				sourceAudioFallbackPaths: input.audio.sourceAudioFallbackPaths,
 				sourceAudioFallbackStartDelayMsByPath:
 					input.audio.sourceAudioFallbackStartDelayMsByPath,
-				hasAudio: true,
 			});
 			const exporter = new ClipBatchExporter(ports, {
 				videoUrl: input.videoPath ?? "",
 				frameRate: selectedMp4FrameRate,
-				clipRegions: input.timeline.clipRegions,
+				clipRegions: validClipRegions,
 				trimRegions: input.timeline.trimRegions,
 				speedRegions: input.effectiveSpeedRegions,
-				plans,
+				plans: replayPlans,
+				outputClipIds: plans.map((plan) => plan.clipId),
 				audioRegions: input.timeline.audioRegions,
 				isCancelled: hooks.isCancelled,
 				onClipStart: hooks.onClipStart,
@@ -211,12 +218,15 @@ export function useEditorExportController(input: Input) {
 			return window.electronAPI.commitBatchExportClip({
 				batchId: commit.batchId,
 				tempPath: commit.tempPath,
-				clipIndex: commit.plan.clipIndex,
+				clipIndex: commit.clipIndex,
 				captionSidecar: commit.sidecar,
 			});
 		},
 		cancelSession: async (batchId) => {
 			await window.electronAPI?.cancelBatchExportSession?.(batchId);
+		},
+		closeSession: async (batchId) => {
+			await window.electronAPI?.closeBatchExportSession?.(batchId);
 		},
 		discardTemp: async (tempPath) => {
 			await window.electronAPI?.discardExportedTemp?.(tempPath);
@@ -226,6 +236,7 @@ export function useEditorExportController(input: Input) {
 	const handleStartBatchExport = async (retry?: {
 		onlyClipIds: string[];
 		retainedTemps: Record<string, string>;
+		previousItems: import("./useBatchClipExport").BatchClipItem[];
 	}) => {
 		const resolvedSettings = dialogActions.resolveCurrentSettings("mp4");
 		if (!resolvedSettings) return;

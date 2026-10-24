@@ -248,6 +248,13 @@
 		"resultSummary": "Сохранено {{completed}} из {{total}} клипов.",
 		"sidecarWarning": "{{count}} клип(ов) сохранены без файлов субтитров.",
 		"clipFailed": "Клип {{index}}: {{error}}",
-		"retryFailed": "Повторить неудавшиеся клипы"
+		"retryFailed": "Повторить неудавшиеся клипы",
+		"skippedSummary": "Пропущено недопустимых клипов: {{count}}.",
+		"clipSkipped": "Клип {{index}} ({{id}}): {{reason}}",
+		"skipReasonInvalidBounds": "Недопустимые границы таймлайна",
+		"skipReasonInvalidSpeed": "Недопустимая скорость воспроизведения",
+		"skipReasonOutsideSource": "Исходный диапазон вне записи",
+		"sidecarClipWarning": "Предупреждение о субтитрах клипа {{index}}: {{message}}",
+		"notPublishedAfterWriteFailure": "Не опубликовано: не удалось сохранить предыдущий клип"
 	}
 }

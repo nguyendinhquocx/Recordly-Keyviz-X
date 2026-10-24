@@ -15,7 +15,10 @@ import type { useExportSettings } from "../export/useExportSettings";
 import type { useExportStatusViewModel } from "../export/useExportStatusViewModel";
 import type { useVideoEditorPresets } from "../presets/useVideoEditorPresets";
 import type { useProjectState } from "../state/useProjectState";
-import type { BatchClipExportController } from "../export/useBatchClipExport";
+import type {
+	BatchClipExportController,
+	BatchRetryRequest,
+} from "../export/useBatchClipExport";
 import { EditorExportMenu } from "./EditorExportMenu";
 import { EditorPresetMenu } from "./EditorPresetMenu";
 
@@ -56,7 +59,7 @@ type Props = {
 	revealExportedFile: () => void;
 	exportMessage: string | null;
 	batchExport: BatchClipExportController & {
-		handleStartBatchExport: () => Promise<void>;
+		handleStartBatchExport: (retry?: BatchRetryRequest) => Promise<void>;
 	};
 	prepareExportForShare: () => Promise<string | undefined>;
 	onRequestShareSignIn: () => void;

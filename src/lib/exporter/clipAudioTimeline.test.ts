@@ -70,6 +70,25 @@ describe("clip audio timeline", () => {
 		);
 		expect(starts[0]).toHaveBeenCalledWith(0.5, 0, 3);
 	});
+	it("plays the full clipped overlay duration from the preserved source-file offset", () => {
+		const processor = new TestAudioProcessor();
+		const { starts, ctx } = context();
+		processor.scheduleOverlay(
+			ctx,
+			buffer,
+			{
+				startMs: 0,
+				endMs: 1500,
+				sourceOffsetMs: 500,
+				volume: 1,
+			} as AudioRegion,
+			[],
+			0,
+			1.5,
+			true,
+		);
+		expect(starts[0]).toHaveBeenCalledWith(0, 0.5, 1.5);
+	});
 	it("schedules a clip correctly when its audio straddles an offline chunk boundary", async () => {
 		const processor = new TestAudioProcessor();
 		const prepared = await processor.prepare(
@@ -87,6 +106,26 @@ describe("clip audio timeline", () => {
 		expect(starts).toHaveLength(1);
 		expect(starts[0]).toHaveBeenCalledWith(0);
 	});
+	it("preserves imported-file offset and full overlap duration across chunks", () => {
+		const processor = new TestAudioProcessor();
+		const region = {
+			startMs: 0,
+			endMs: 1500,
+			sourceOffsetMs: 500,
+			volume: 1,
+		} as AudioRegion;
+
+		const first = context();
+		processor.scheduleOverlay(first.ctx, buffer, region, [], 0, 1, true);
+		expect(first.starts[0]).toHaveBeenCalledWith(0, 0.5, 1);
+
+		const second = context();
+		processor.scheduleOverlay(second.ctx, buffer, region, [], 1, 0.5, true);
+		expect(second.starts[0]).toHaveBeenCalledWith(0, 1.5, 0.5);
+		// Both chunks together schedule 1.5s output, consuming file [0.5, 2.0).
+		expect(first.starts[0].mock.calls[0][2] + second.starts[0].mock.calls[0][2]).toBe(1.5);
+	});
+
 	it("an explicitly empty clip list schedules no source audio", async () => {
 		const processor = new TestAudioProcessor();
 		const prepared = await processor.prepare(

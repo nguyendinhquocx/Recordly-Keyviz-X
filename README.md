@@ -19,6 +19,7 @@ Recordly is an open-source screen recorder and editor for walkthroughs, demos, a
 - **Vietnamese by default** — first launch runs in Vietnamese; the saved locale always wins, and 12 locale folders ship with key-parity checks (`npm run i18n:check`).
 - **Privacy-conscious overlay lifecycle** — the input listener only runs while a recording is actually capturing. It stops on pause, stop, cancel, and app exit. The control hotkeys themselves are filtered out of the overlay, and the settings window never captures keystrokes.
 - **Clean sidecar packaging** — the Windows package bundles the sidecar executable with Keyviz's GPLv3 license, the vendored rdev MIT license, and third-party notices. If the standalone Keyviz app is running, Recordly asks you to close it instead of killing or overwriting it.
+- **Separate-clip Local export** — export every valid timeline clip as its own MP4 with one batch action and one folder choice; full-timeline MP4/GIF and Link flows remain available.
 
 > [!IMPORTANT]
 > The keyboard overlay and recording hotkeys are **Windows-only** in this fork. Everything else works cross-platform as upstream.
@@ -93,7 +94,7 @@ Prerequisites are the same as [upstream](https://github.com/webadderallorg/Recor
 
 1. Launch Recordly, pick a screen or window, choose audio sources, record.
 2. Stop recording to open the editor; save work as `.recordly`.
-3. Export MP4 or GIF.
+3. Export MP4 or GIF. Local MP4 also offers Full timeline or Separate clips; GIF remains Full timeline.
 
 # System requirements
 

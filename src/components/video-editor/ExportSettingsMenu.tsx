@@ -278,7 +278,8 @@ export function ExportSettingsMenu({
 					<Button
 						size="lg"
 						onClick={onExport}
-						disabled={exportActionDisabled}
+						isDisabled={exportActionDisabled}
+						data-export-action-disabled={String(exportActionDisabled)}
 						className="w-full"
 					>
 						<Download />
