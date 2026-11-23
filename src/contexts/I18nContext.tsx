@@ -93,7 +93,7 @@ import viSettings from "@/i18n/locales/vi/settings.json";
 import viShortcuts from "@/i18n/locales/vi/shortcuts.json";
 import viTimeline from "@/i18n/locales/vi/timeline.json";
 
-const LOCALE_STORAGE_KEY = "recordly.locale";
+export { translate } from "@/i18n/runtime";
 
 type LocaleBundle = Record<I18nNamespace, Record<string, unknown>>;
 
@@ -308,15 +308,34 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 	const [locale, setLocaleState] = useState<AppLocale>(getInitialLocale);
 
 	const setLocale = useCallback((nextLocale: AppLocale) => {
+		setActiveLocale(nextLocale);
 		setLocaleState(nextLocale);
-		if (typeof window !== "undefined") {
+		try {
 			window.localStorage.setItem(LOCALE_STORAGE_KEY, nextLocale);
+		} catch {
+			// The selection still applies for this session when storage is unavailable.
 		}
 	}, []);
 
 	useEffect(() => {
+		setActiveLocale(locale);
 		document.documentElement.lang = locale;
+		void window.electronAPI?.setAppLocale?.(locale).catch(() => {
+			// Native controls are unavailable in renderer-only previews.
+		});
 	}, [locale]);
+
+	useEffect(() => {
+		const sync = (event: StorageEvent) => {
+			if (event.key === LOCALE_STORAGE_KEY || event.key === null) {
+				const nextLocale = matchLocale(event.newValue) ?? getSystemLocale();
+				setActiveLocale(nextLocale);
+				setLocaleState(nextLocale);
+			}
+		};
+		window.addEventListener("storage", sync);
+		return () => window.removeEventListener("storage", sync);
+	}, []);
 
 	const t = useCallback(
 		(key: string, fallback?: string, vars?: Record<string, string | number>) => {
@@ -334,7 +353,11 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 		[locale, setLocale, t],
 	);
 
-	return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
+	return (
+		<I18nContext.Provider value={value}>
+			<AriaI18nProvider locale={locale}>{children}</AriaI18nProvider>
+		</I18nContext.Provider>
+	);
 }
 
 export function useI18n() {

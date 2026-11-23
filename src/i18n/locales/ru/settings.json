@@ -3,10 +3,14 @@
 		"level": "Масштабирование",
 		"selectRegion": "Выберите область для масштабирования",
 		"deleteZoom": "Удалить",
+		"clearAllZooms": "Удалить все области масштабирования",
 		"modeAuto": "Автоматически",
 		"modeManual": "Вручную",
 		"modeManualDescription": "Установить фиксированную точку фокусировки",
-		"modeAutoDescription": "Камера выравнивается по центру, когда курсор приближается к краю увеличенного изображения"
+		"modeAutoDescription": "Камера выравнивается по центру, когда курсор приближается к краю увеличенного изображения",
+		"mode": "Режим",
+		"amount": "Степень",
+		"globalSettings": "Анимация"
 	},
 	"trim": {
 		"deleteRegion": "Удалить"
@@ -15,7 +19,8 @@
 		"playbackSpeed": "Скорость воспроизведения",
 		"selectRegion": "Диапазон скорости",
 		"deleteRegion": "Удалить",
-		"label": "Скорость"
+		"label": "Скорость",
+		"unsupported": "Предпросмотр на этом устройстве не поддерживается"
 	},
 	"clip": {
 		"title": "Клип",
@@ -60,7 +65,7 @@
 		"zoomOutDescription": "Настройка выхода камеры из области зума.",
 		"connectedZoomTitle": "Между зумами",
 		"connectedZoomDescription": "Настройка плавного перехода между зумами.",
-		"motionPresetsTitle": "Пресеты движения",
+		"motionPresetsTitle": "Пресеты",
 		"motionPresetsZoomHint": "Предварительные параметры доступны в настройках.",
 		"animationPresets": "Пресеты анимации",
 		"cursorMotionPresets": "Предустановки движения курсора",
@@ -70,7 +75,7 @@
 				"description": "Быстрая анимация для демо-роликов, пошаговых инструкций и повседневных записей."
 			},
 			"smooth": {
-				"label": "Спокойный",
+				"label": "Кинематографический",
 				"description": "Мягкая анимация для видеороликов в стиле Keynote и презентаций."
 			}
 		},
@@ -96,29 +101,29 @@
 		"cursorSpringMass": "Масса (инерция)",
 		"off": "Выкл.",
 		"cursorClickEffects": {
-			"title": "Click Effects",
-			"advanced": "Advanced",
-			"advancedShow": "Show advanced click effect controls",
-			"advancedHide": "Hide advanced click effect controls",
-			"color": "Effect Color",
-			"size": "Effect Size",
-			"opacity": "Effect Opacity",
-			"duration": "Effect Duration",
+			"title": "Эффекты нажатия",
+			"advanced": "Дополнительно",
+			"advancedShow": "Показать расширенные настройки эффектов нажатия",
+			"advancedHide": "Скрыть расширенные настройки эффектов нажатия",
+			"color": "Цвет эффекта",
+			"size": "Размер эффекта",
+			"opacity": "Непрозрачность эффекта",
+			"duration": "Длительность эффекта",
 			"none": {
-				"label": "Off",
-				"description": "No click graphic. Only the cursor motion changes when you click."
+				"label": "Выключено",
+				"description": "Без графического эффекта. При нажатии меняется только движение курсора."
 			},
 			"ripple": {
-				"label": "Ripple",
-				"description": "Expanding rings radiate from each click so taps read clearly in motion."
+				"label": "Волны",
+				"description": "От каждого нажатия расходятся кольца, чтобы оно было хорошо заметно в движении."
 			},
 			"spotlight": {
-				"label": "Spotlight",
-				"description": "A soft halo flashes around the pointer to emphasize the clicked area."
+				"label": "Подсветка",
+				"description": "Мягкий ореол вспыхивает вокруг указателя, выделяя область нажатия."
 			},
 			"echo": {
-				"label": "Echo",
-				"description": "A pair of soft rings that spread outward with a cleaner pulse."
+				"label": "Эхо",
+				"description": "Два мягких кольца расходятся наружу с более чётким импульсом."
 			}
 		},
 		"cursorMotionBlur": "Размытие в движении",
@@ -130,7 +135,7 @@
 		"webcamFootageDescription": "Видео не добавлено",
 		"uploadWebcamFootage": "Загрузить видео",
 		"replaceWebcamFootage": "Заменить видео",
-		"removeWebcamFootage": "Удалить видео",
+		"removeWebcamFootage": "Убрать из проекта",
 		"webcamFootageAdded": "Видео добавлено",
 		"webcamFootageRemoved": "Видео удалено",
 		"webcamSize": "Размер веб-камеры",
@@ -151,7 +156,29 @@
 		"paddingBottom": "Снизу",
 		"paddingLeft": "Слева",
 		"paddingRight": "Справа",
-		"removeBackground": "Удалить фон"
+		"removeBackground": "Удалить фон",
+		"devSection": "Разработка",
+		"nativeCaptureWarningTester": "Предупреждение встроенного захвата",
+		"nativeCaptureWarningTesterUnavailable": "Этот проект помечен как недоступный для встроенного захвата.",
+		"nativeCaptureWarningTesterAvailable": "Этот проект не помечен как неподдерживаемый, но диалог можно открыть для проверки интерфейса.",
+		"openNativeCaptureWarning": "Открыть предупреждение",
+		"cameraDebugTuning": "Отладочная настройка камеры",
+		"cameraSpringStiffnessMultiplier": "Жёсткость камеры",
+		"cameraSpringDampingMultiplier": "Затухание камеры",
+		"cameraSpringMassMultiplier": "Масса камеры",
+		"cursorDebugTuning": "Отладочная настройка курсора",
+		"cursorSpringStiffnessMultiplier": "Жёсткость пружины",
+		"cursorSpringDampingMultiplier": "Затухание пружины",
+		"cursorSpringMassMultiplier": "Масса пружины",
+		"classicZoom": "Классическая анимация",
+		"webcamShape": "Форма",
+		"webcamCircle": "Круг",
+		"webcamSquircle": "Квадрат",
+		"webcamPosition": "Положение",
+		"webcamCustomPosition": "Своё положение",
+		"webcamHorizontal": "По горизонтали",
+		"webcamVertical": "По вертикали",
+		"webcamMargin": "Отступ"
 	},
 	"sections": {
 		"scene": "Сцена",
@@ -161,7 +188,10 @@
 		"cursor": "Курсор",
 		"webcam": "Веб-камера",
 		"frame": "Рамка",
-		"crop": "Обрезать видео"
+		"crop": "Обрезать видео",
+		"settings": "Настройки",
+		"appearance": "Оформление",
+		"title": "Инструменты редактора"
 	},
 	"captions": {
 		"selectOnTimeline": "Выберите субтитры на таймлайне, чтобы отредактировать их.",
@@ -192,13 +222,17 @@
 		"backgroundOpacity": "Прозрачность фона",
 		"textColor": "Цвет текста",
 		"editor": {
-			"text": "Text",
-			"start": "Start",
-			"end": "End",
-			"split": "Split",
-			"merge": "Merge",
-			"delete": "Delete"
-		}
+			"text": "Текст",
+			"start": "Начало",
+			"end": "Конец",
+			"split": "Разделить",
+			"merge": "Объединить",
+			"delete": "Удалить"
+		},
+		"generation": "Создание",
+		"useCustomModel": "Использовать свою модель",
+		"generatingStatus": "Создание субтитров. Это может занять некоторое время.",
+		"editSaved": "Субтитр обновлён"
 	},
 	"crop": {
 		"title": "Обрезка видео",
@@ -207,7 +241,15 @@
 		"bottom": "Низ",
 		"left": "Левый край",
 		"right": "Правый край",
-		"openEditor": "Открыть редактор"
+		"openEditor": "Открыть редактор",
+		"details": "Параметры обрезки",
+		"inlineHint": "Перетащите края или углы · Удерживайте Shift для квадрата",
+		"aspectRatio": "Соотношение сторон",
+		"ratioWidth": "Ширина",
+		"ratioHeight": "Высота",
+		"ratioHint": "Выберите шаблон или введите своё соотношение (от 1:20 до 20:1).",
+		"freeform": "Произвольно",
+		"pixelFields": "Пиксели"
 	},
 	"background": {
 		"title": "Фон",
@@ -218,16 +260,23 @@
 		"uploadCustom": "Загрузить",
 		"uploadSuccess": "Изображение загружено.",
 		"uploadError": "Загрузите JPG или JPEG.",
-		"uploadErrorDescription": "Поддерживаются только JPG и JPEG."
+		"uploadErrorDescription": "Поддерживаются только JPG и JPEG.",
+		"wallpaperImportError": "Не удалось добавить фон",
+		"unsupportedWallpaper": "Не удалось открыть этот фон. Попробуйте JPEG, PNG, WebP, AVIF, GIF, SVG, BMP, HEIC/HEIF или поддерживаемое видео, например MP4 или WebM.",
+		"video": "Видео",
+		"addWallpaper": "Добавить фон",
+		"addVideoWallpaper": "Добавить видеофон",
+		"customWallpaper": "Собственный фон",
+		"details": "Параметры фона"
 	},
 	"export": {
 		"title": "Экспорт",
 		"mp4": "MP4",
 		"gif": "GIF",
 		"quality": {
-			"low": "Низкое",
-			"medium": "Среднее",
-			"high": "Высокое",
+			"low": "FHD",
+			"medium": "QHD",
+			"high": "4K",
 			"original": "Исходное"
 		},
 		"fpsTitle": "FPS",
@@ -240,7 +289,39 @@
 		"saveProject": "Сохранить проект",
 		"exportVideo": "Экспортировать {{format}}",
 		"reportBug": "Сообщить об ошибке",
-		"starOnGithub": "Оценить на GitHub"
+		"starOnGithub": "Оценить на GitHub",
+		"estimatedFileSize": "Примерный размер файла",
+		"estimating": "Вычисление…",
+		"estimateUnavailable": "Недоступно",
+		"format": "Формат",
+		"resolutionTitle": "Разрешение",
+		"advanced": "Дополнительно",
+		"advancedResolution": "Дополнительные параметры разрешения",
+		"customResolution": "Своё",
+		"customResolutionHint": "Ширина и высота связаны с соотношением сторон холста. Используйте чётные размеры от 2 до 8192 пикселей.",
+		"invalidCustomResolution": "Введите чётные размеры от 2 до 8192 пикселей.",
+		"encodingTitle": "Кодирование",
+		"nvidiaCuda": {
+			"title": "NVIDIA CUDA"
+		},
+		"captionSidecar": {
+			"title": "Экспорт файла субтитров",
+			"hint": "Сохранить файлы .srt и .vtt рядом с экспортированным видео."
+		},
+		"size": "Размер",
+		"optimizeTargetHint": "Цель — уменьшить размер на 90% за счёт цветов и разрешения. Фактический размер может отличаться.",
+		"optimizeSize": "Оптимизировать размер",
+		"optimizeSizeFailed": "Оптимизация недоступна. Исходный GIF сохранён.",
+		"optimizeSizeSaved": "Сэкономлено {{size}} (на {{percent}}% меньше)",
+		"optimizeSizeUnchanged": "На 0% меньше — исходный GIF уже был компактным.",
+		"optimizeTargetMissed": "Цель не достигнута",
+		"customWidth": "Ширина (px)",
+		"customHeight": "Высота (px)",
+		"encoding": {
+			"fast": "Быстрое",
+			"balanced": "Сбалансированное",
+			"quality": "Качество"
+		}
 	},
 	"audio": {
 		"title": "Аудио",
@@ -254,6 +335,10 @@
 		"deleteRegion": "Удалить аудио"
 	},
 	"updates": {
+		"loadFailed": "Не удалось загрузить канал обновлений. Попробуйте ещё раз.",
+		"automaticDownloads": "Автоматически скачивать обновления",
+		"automaticDownloadsDescription": "Скачивайте новые обновления в фоновом режиме. Вы сами выбираете, когда перезапустить приложение.",
+		"downloadPreferenceFailed": "Не удалось загрузить или сохранить настройки автоматического скачивания обновлений. Повторите попытку.",
 		"title": "Обновления",
 		"experimental": "Экспериментальные обновления",
 		"saveFailed": "Не удалось изменить канал обновлений.",

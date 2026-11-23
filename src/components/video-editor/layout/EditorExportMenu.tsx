@@ -1,25 +1,31 @@
-import { ExportErrorReportButton } from "@/components/feedback/ExportErrorReportButton";
-import { LinkSimple, HardDrive, Export } from "@phosphor-icons/react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { CloudShareButton } from "../cloud/CloudShareButton";
-import { Card, TagGroup, Tag } from "@heroui/react";
+import { useI18n as useUiLocale } from "@/contexts/I18nContext";
+import "./EditorExportMenu.css";
+import { Tag, TagGroup } from "@heroui/react";
 import { motion, useReducedMotion } from "motion/react";
-import { ProgressBar } from "@heroui/react";
-
-import { toast } from "@/components/ui/toast";
+import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { RecordlyMark } from "@/components/ui/RecordlyMark";
 import type { useI18n } from "@/contexts/I18nContext";
+import { captureProjectThumbnailCanvas } from "@/lib/projectThumbnailCanvas";
+import { CloudShareButton } from "../cloud/CloudShareButton";
 import { ExportSettingsMenu } from "../ExportSettingsMenu";
 import type { useExportDimensions } from "../export/useExportDimensions";
 import type { useExportSession } from "../export/useExportSession";
 import type { useExportSettings } from "../export/useExportSettings";
 import type { BatchClipExportController, BatchRetryRequest } from "../export/useBatchClipExport";
 import type { useExportStatusViewModel } from "../export/useExportStatusViewModel";
+import type { VideoPlaybackRef } from "../VideoPlayback";
+import { EditorExportCard } from "./EditorExportCard";
+import { PublishLinkIcon, PublishSaveIcon } from "./PublishDestinationIcons";
 
 type Props = {
+	projectRevision?: string;
 	projectPath?: string | null;
+	projectSourcePath?: string | null;
+	openedSavedProject?: boolean;
 	t: ReturnType<typeof useI18n>["t"];
+	videoPlaybackRef?: RefObject<VideoPlaybackRef | null>;
 	exportSettings: ReturnType<typeof useExportSettings>;
 	exportSession: ReturnType<typeof useExportSession>;
 	exportDimensions: ReturnType<typeof useExportDimensions>;
@@ -47,15 +53,62 @@ type Props = {
 };
 
 export function EditorExportMenu(props: Props) {
+	const { t: uiText } = useUiLocale();
+	const shareLinkLabel = uiText("ui.createShareLink");
+	const saveToDeviceLabel = uiText("ui.saveToDevice", "Save to device");
 	const { publishDestination: destination, setPublishDestination: setDestination } =
 		props.exportSettings;
 	const [shareBusy, setShareBusy] = useState(false);
+	const [hasStartedShare, setHasStartedShare] = useState(false);
+	const [shareContainer, setShareContainer] = useState<HTMLDivElement | null>(null);
+	const [thumbnail, setThumbnail] = useState<string>();
+	const { videoPlaybackRef } = props;
+	const {
+		isExporting,
+		exportProgress,
+		exportError,
+		showExportDropdown,
+		setShowExportDropdown,
+		exportedFilePath,
+		hasPendingExportSave,
+	} = props.exportSession;
+	const captureThumbnail = useCallback(() => {
+		const preview = videoPlaybackRef?.current;
+		const app = preview?.app;
+		try {
+			const canvas = app?.canvas;
+			if (
+				app &&
+				preview?.composedFrame &&
+				canvas instanceof HTMLCanvasElement &&
+				canvas.width &&
+				canvas.height
+			) {
+				app.render();
+				setThumbnail(captureProjectThumbnailCanvas(canvas, canvas.width, canvas.height));
+				return;
+			}
+		} catch {
+			// The export can proceed with the format icon when the preview cannot be captured.
+		}
+		setThumbnail(undefined);
+	}, [videoPlaybackRef]);
+	const handleShareBusyChange = useCallback((busy: boolean) => {
+		setShareBusy(busy);
+		if (busy) setHasStartedShare(true);
+	}, []);
+	const localExportInProgress = destination === "local" && isExporting;
+	const showLocalExportCard =
+		destination === "local" && (isExporting || Boolean(exportError || exportedFilePath));
+	// The export cancel handler closes the dropdown; keep the share visible until cleanup settles.
+	const publishMenuOpen =
+		(showExportDropdown || (destination === "link" && shareBusy)) && !showLocalExportCard;
 	const reducedMotion = useReducedMotion();
 	const handledShareRequest = useRef(0);
 	const contentRef = useRef<HTMLDivElement>(null);
 	const [contentHeight, setContentHeight] = useState<number>();
 	useLayoutEffect(() => {
-		if (!props.exportSession.showExportDropdown) return;
+		if (!publishMenuOpen) return;
 		const content = contentRef.current;
 		if (!content) return;
 		// The popover scales in on entry. Its bounding rect includes that scale,
@@ -65,13 +118,14 @@ export function EditorExportMenu(props: Props) {
 		const observer = new ResizeObserver(measure);
 		observer.observe(content);
 		return () => observer.disconnect();
-	}, [props.exportSession.showExportDropdown]);
+	}, [publishMenuOpen]);
 	useEffect(() => {
 		if (
 			props.shareRequestNonce > handledShareRequest.current &&
 			!props.batchExport.isBatchExporting
 		) {
 			handledShareRequest.current = props.shareRequestNonce;
+			if (isExporting || shareBusy) return;
 			setDestination("link");
 			props.handleOpenExportDropdown();
 		}
@@ -113,6 +167,8 @@ export function EditorExportMenu(props: Props) {
 		setExportFormat,
 		gifFrameRate,
 		setGifFrameRate,
+		gifOptimizeSize,
+		setGifOptimizeSize,
 		gifLoop,
 		setGifLoop,
 		gifSizePreset,
@@ -159,6 +215,11 @@ export function EditorExportMenu(props: Props) {
 
 	const settingsForm = (
 		<ExportSettingsMenu
+			advancedExportSettings={exportSettings.advancedExportSettings}
+			onAdvancedExportSettingsChange={exportSettings.setAdvancedExportSettings}
+			customExportResolution={exportSettings.customExportResolution}
+			onCustomExportResolutionChange={exportSettings.setCustomExportResolution}
+			mp4SizeEstimate={exportSession.mp4SizeEstimate}
 			exportFormat={destination === "link" ? "mp4" : exportFormat}
 			onExportFormatChange={setExportFormat}
 			exportEncodingMode={exportEncodingMode}
@@ -173,6 +234,9 @@ export function EditorExportMenu(props: Props) {
 			onExportQualityChange={setExportQuality}
 			gifFrameRate={gifFrameRate}
 			onGifFrameRateChange={setGifFrameRate}
+			gifSizeEstimate={exportSession.gifSizeEstimate}
+			gifOptimizeSize={gifOptimizeSize}
+			onGifOptimizeSizeChange={setGifOptimizeSize}
 			gifLoop={gifLoop}
 			onGifLoopChange={setGifLoop}
 			gifSizePreset={gifSizePreset}
@@ -212,14 +276,14 @@ export function EditorExportMenu(props: Props) {
 			hideHeading
 			hideAction={destination === "link"}
 			linkMode={destination === "link"}
-			className="rounded-none bg-transparent px-5 pb-5 pt-0 shadow-none"
+			className="rounded-none bg-transparent px-5 pt-0 shadow-none"
 		/>
 	);
 
 	return (
 		<>
 			<Popover
-				open={showExportDropdown}
+				open={publishMenuOpen}
 				onOpenChange={(open) => {
 					if (shareBusy || isBatchExporting) return;
 					if (open) {
@@ -231,14 +295,17 @@ export function EditorExportMenu(props: Props) {
 				<PopoverTrigger asChild>
 					<Button
 						type="button"
+						disabled={localExportInProgress || hasPendingExportSave || shareBusy}
 						className="inline-flex h-9 min-w-[104px] items-center justify-center gap-2 px-4.5"
 					>
-						<Export className="h-4 w-4" />
-						<span className="text-sm font-semibold tracking-tight">Publish</span>
+						<RecordlyMark />
+						<span className="text-sm font-semibold tracking-tight">
+							{uiText("ui.publish")}
+						</span>
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent
-					aria-label="Publish"
+					aria-label={uiText("ui.publish")}
 					align="end"
 					sideOffset={10}
 					className="w-[360px] max-h-none overflow-hidden p-0"
@@ -250,7 +317,7 @@ export function EditorExportMenu(props: Props) {
 						initial={false}
 						animate={{ height: contentHeight ?? "auto" }}
 						transition={{ duration: reducedMotion ? 0 : 0.22, ease: "easeInOut" }}
-						className="overflow-hidden"
+						className="max-h-[inherit] overflow-hidden"
 					>
 						<div ref={contentRef}>
 							<div className="p-5 space-y-3">
@@ -835,6 +902,46 @@ export function EditorExportMenu(props: Props) {
 					</motion.div>
 				</PopoverContent>
 			</Popover>
+			{/* Keep the controller and unsaved project's link alive when Publish closes. */}
+			{(hasStartedShare || (destination === "link" && publishMenuOpen)) && (
+				<CloudShareButton
+					inline
+					projectPath={props.projectPath}
+					projectSourcePath={props.projectSourcePath}
+					openedSavedProject={props.openedSavedProject}
+					projectRevision={props.projectRevision}
+					projectTitle={props.projectTitle}
+					prepareFile={props.prepareExportForShare}
+					onCancelPrepare={handleCancelExport}
+					preparationProgress={exportProgress?.percentage ?? 0}
+					authToken={props.authToken}
+					accountId={props.accountId}
+					onBusyChange={handleShareBusyChange}
+					onRequestSignIn={() => {
+						setShowExportDropdown(false);
+						props.onRequestShareSignIn();
+					}}
+					inlineContainer={
+						publishMenuOpen && destination === "link" ? shareContainer : null
+					}
+					suppressSuccessToast
+				/>
+			)}
+			{showLocalExportCard && (
+				<EditorExportCard
+					t={t}
+					session={exportSession}
+					status={exportStatus}
+					format={exportFormat}
+					projectTitle={props.projectTitle}
+					thumbnail={thumbnail}
+					onCancel={handleCancelExport}
+					onDismiss={handleExportDropdownClose}
+					onRetrySave={handleRetrySaveExport}
+					onRevealFile={revealExportedFile}
+					onRecordNew={props.onRecordNew}
+				/>
+			)}
 		</>
 	);
 }

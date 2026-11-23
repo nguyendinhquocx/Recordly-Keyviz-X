@@ -1,6 +1,9 @@
-import { useRef, useState } from "react";
-import { Button, Description, Form, Input, Label, TextArea, TextField } from "@heroui/react";
+import { Button, Description, Form, TextArea, TextField } from "@heroui/react";
+import { Paperclip } from "@phosphor-icons/react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRecordlyAuth } from "@/components/auth/useRecordlyAuth";
+import { ErrorReportButton } from "@/components/feedback/ErrorReportButton";
+import { FeedbackLinks } from "@/components/feedback/FeedbackLinks";
 import {
 	Dialog,
 	DialogContent,
@@ -17,14 +20,28 @@ import {
 	validateAttachments,
 } from "@/lib/feedback/submitFeedback";
 
+import styles from "./FeedbackDialog.module.css";
+
+const sentiments = [
+	{ value: "loving", emoji: "🥰", label: "Loving" },
+	{ value: "neutral", emoji: "😐", label: "Neutral" },
+	{ value: "angry", emoji: "😠", label: "Angry" },
+] as const;
+
 export function FeedbackDialog({
 	className,
 	showLabel = true,
 	onSignIn,
+	open: controlledOpen,
+	onOpenChange,
+	hideTrigger = false,
 }: {
 	className?: string;
 	showLabel?: boolean;
 	onSignIn?: () => void;
+	open?: boolean;
+	onOpenChange?: (open: boolean) => void;
+	hideTrigger?: boolean;
 }) {
 	const auth = useRecordlyAuth();
 	const { t } = useI18n();
@@ -34,9 +51,26 @@ export function FeedbackDialog({
 	const [files, setFiles] = useState<File[]>([]);
 	const [error, setError] = useState("");
 	const [sending, setSending] = useState(false);
+	const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 	const [sent, setSent] = useState(false);
 	const sendingRef = useRef(false);
 	const picker = useRef<HTMLInputElement>(null);
+	useEffect(() => {
+		if (!open) return;
+		setSent(false);
+		if (userId) {
+			const draft = getFeedbackDraft(userId);
+			// Spaces in a saved draft suppress the native placeholder despite looking empty.
+			if (draft.message.length > 0 && !draft.message.trim()) {
+				updateFeedbackDraft(userId, { message: "" });
+			}
+		}
+	}, [open, userId]);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: reset submission feedback when the signed-in account changes.
+	useEffect(() => {
+		setSent(false);
+		setError("");
+	}, [userId]);
 	function addFiles(incoming: File[]) {
 		const next = [...files, ...incoming];
 		const issue = validateAttachments(next);
@@ -53,7 +87,6 @@ export function FeedbackDialog({
 			onOpenChange={(value) => {
 				if (sendingRef.current) return;
 				setOpen(value);
-				if (value) setSent(false);
 			}}
 		>
 			<DialogTrigger asChild>
@@ -90,7 +123,7 @@ export function FeedbackDialog({
 					</div>
 				) : (
 					<Form
-						className="flex flex-col gap-4"
+						className={styles.form}
 						onSubmit={async (event) => {
 							event.preventDefault();
 							if (sendingRef.current) return;
@@ -103,34 +136,33 @@ export function FeedbackDialog({
 							setError("");
 							try {
 								await submitFeedback({
-									title: subject,
+									title: `${sentiments.find((item) => item.value === sentiment)?.emoji ?? ""} ${message}`,
 									subject: "other",
 									message,
 									files,
-									logs: feedbackDiagnostics(),
+									logs: await collectFeedbackDiagnostics(),
+									onUploadProgress: setUploadProgress,
 								});
 								setSent(true);
-								setSubject("");
-								setMessage("");
-								setFiles([]);
+								if (userId)
+									updateFeedbackDraft(userId, {
+										sentiment: DEFAULT_FEEDBACK_SENTIMENT,
+										message: "",
+										files: [],
+									});
 							} catch (error) {
 								setError(feedbackErrorMessage(error));
 							} finally {
 								sendingRef.current = false;
 								setSending(false);
+								setUploadProgress(null);
 							}
 						}}
 					>
-						<TextField
-							name="subject"
-							isRequired
-							isDisabled={sending}
-							value={subject}
-							onChange={(value) => {
-								setSubject(value);
-								setError("");
-							}}
-							className="w-full"
+						<div
+							role="group"
+							aria-label={t("common.feedback.sentiment", "How do you feel?")}
+							className={styles.sentiments}
 						>
 							<Label>{t("editor.feedback.subjectLabel", "Subject")}</Label>
 							<Input
@@ -143,6 +175,7 @@ export function FeedbackDialog({
 						</TextField>
 						<TextField
 							name="description"
+							aria-label={t("common.feedback.description", "Description")}
 							isRequired
 							isDisabled={sending}
 							value={message}
@@ -183,7 +216,7 @@ export function FeedbackDialog({
 							type="button"
 							variant="secondary"
 							size="sm"
-							className="self-start"
+							className={styles.attach}
 							isDisabled={sending}
 							onPress={() => picker.current?.click()}
 						>
@@ -195,7 +228,7 @@ export function FeedbackDialog({
 								{files.map((file, index) => (
 									<div
 										key={`${file.name}-${index}`}
-										className="flex items-center gap-2 text-sm"
+										className={styles.attachment}
 									>
 										<span className="min-w-0 flex-1 truncate">{file.name}</span>
 										<Button
@@ -221,9 +254,17 @@ export function FeedbackDialog({
 								"Diagnostics will be sent along with your feedback.",
 							)}
 						</Description>
+						{uploadProgress !== null && (
+							<progress
+								className="w-full"
+								aria-label={t("common.feedback.attachFiles", "Attach files")}
+								value={uploadProgress}
+								max={100}
+							/>
+						)}
 						{error && (
 							<Description role="alert" className="text-danger">
-								{error}
+								{error} <ErrorReportButton error={error} />
 							</Description>
 						)}
 						<Button type="submit" isDisabled={sending} className="w-full">
@@ -233,6 +274,9 @@ export function FeedbackDialog({
 						</Button>
 					</Form>
 				)}
+				<div className={styles.footer}>
+					<FeedbackLinks />
+				</div>
 			</DialogContent>
 		</Dialog>
 	);

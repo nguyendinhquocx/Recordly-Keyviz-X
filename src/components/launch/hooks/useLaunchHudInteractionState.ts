@@ -28,7 +28,7 @@ export function useLaunchHudInteractionState({
 		if (interactiveOverlayOpen) {
 			isMouseOverHudRef.current = true;
 			if (timeoutRef.current) clearTimeout(timeoutRef.current);
-			window.electronAPI?.hudOverlaySetIgnoreMouse?.(false);
+			setIgnoring(false, true);
 		} else {
 			isMouseOverHudRef.current = false;
 			const timer = setTimeout(() => {
@@ -42,9 +42,13 @@ export function useLaunchHudInteractionState({
 
 	useEffect(() => {
 		const handleMouseOver = (e: globalThis.MouseEvent) => {
-			const target = e.target as HTMLElement | null;
-			if (!target) return;
-			const isInteractive = !!target.closest(".pointer-events-auto, [data-hud-interactive]");
+			// Electron forwards mousemove while clicks pass through. Target ancestry
+			// is unreliable there, especially inside transparent full-width wrappers.
+			const isInteractive = isPointerOverHudSurface(
+				getHudInteractiveBounds(document),
+				e.clientX,
+				e.clientY,
+			);
 
 			if (isInteractive) {
 				isMouseOverHudRef.current = true;
@@ -61,26 +65,27 @@ export function useLaunchHudInteractionState({
 						!webcamPreviewDragStartRef.current &&
 						!isMouseOverHudRef.current
 					) {
-						window.electronAPI?.hudOverlaySetIgnoreMouse?.(true);
+						setIgnoring(true);
 					}
 				}, 0);
 			}
 		};
 
+		window.addEventListener("mousemove", handleMouseOver);
 		window.addEventListener("mouseover", handleMouseOver);
 		return () => window.removeEventListener("mouseover", handleMouseOver);
 	}, [interactiveOverlayOpen, isHudDraggingRef, isWebcamPreviewDraggingRef, webcamPreviewDragStartRef]);
 
 	const beginInteractiveHudAction = useCallback(() => {
 		isMouseOverHudRef.current = true;
-		window.electronAPI?.hudOverlaySetIgnoreMouse?.(false);
-	}, []);
+		setIgnoring(false, true);
+	}, [setIgnoring]);
 
 	const handleHudMouseEnter = useCallback(() => {
 		isMouseOverHudRef.current = true;
 		if (timeoutRef.current) clearTimeout(timeoutRef.current);
-		window.electronAPI?.hudOverlaySetIgnoreMouse?.(false);
-	}, []);
+		setIgnoring(false, true);
+	}, [setIgnoring]);
 
 	const handleHudMouseLeave = useCallback(
 		(event: MouseEvent<HTMLDivElement>) => {
@@ -101,7 +106,7 @@ export function useLaunchHudInteractionState({
 					!webcamPreviewDragStartRef.current &&
 					!isMouseOverHudRef.current
 				) {
-					window.electronAPI?.hudOverlaySetIgnoreMouse?.(true);
+					setIgnoring(true);
 				}
 			}, 0);
 		},

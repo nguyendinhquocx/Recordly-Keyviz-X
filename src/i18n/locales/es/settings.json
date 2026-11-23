@@ -3,10 +3,14 @@
 		"level": "Nivel de zoom",
 		"selectRegion": "Selecciona una región de zoom para ajustar",
 		"deleteZoom": "Eliminar zoom",
+		"clearAllZooms": "Eliminar todos los zooms",
 		"modeAuto": "Auto",
 		"modeManual": "Manual",
 		"modeManualDescription": "Establece un punto de enfoque fijo para este zoom",
-		"modeAutoDescription": "La cámara sigue el cursor automáticamente"
+		"modeAutoDescription": "La cámara vuelve a centrarse cuando el cursor se acerca al borde de la vista ampliada",
+		"mode": "Modo",
+		"amount": "Intensidad",
+		"globalSettings": "Animación"
 	},
 	"trim": {
 		"deleteRegion": "Eliminar región de recorte"
@@ -15,7 +19,8 @@
 		"playbackSpeed": "Velocidad de reproducción",
 		"selectRegion": "Selecciona una región de velocidad para ajustar",
 		"deleteRegion": "Eliminar región de velocidad",
-		"label": "Velocidad"
+		"label": "Velocidad",
+		"unsupported": "Este dispositivo no admite la vista previa"
 	},
 	"clip": {
 		"title": "Clip",
@@ -31,6 +36,7 @@
 		"show": "Mostrar",
 		"showCursor": "Mostrar cursor",
 		"loopCursor": "Cursor en bucle",
+		"alwaysUsePointerCursor": "Usar siempre el cursor predeterminado",
 		"cursorStyle": "Estilo del cursor",
 		"cursorStyleOptions": {
 			"macos": "macOS",
@@ -38,20 +44,20 @@
 			"tahoe-inverted": "Tahoe invertido",
 			"windows11": "Windows 11",
 			"dot": "Punto",
-			"figma": "Minimal",
-			"lavender": "Lavender",
+			"figma": "Minimalista",
+			"lavender": "Lavanda",
 			"parched": "Parched",
 			"chooper": "Chooper",
 			"amongus": "Among Us",
-			"turtle": "Turtle"
+			"turtle": "Tortuga"
 		},
 		"backgroundBlur": "Desenfoque",
 		"zoomMotionBlur": "Desenfoque de movimiento del zoom",
-		"auto": "Auto",
+		"auto": "Automático",
 		"connectZooms": "Conectar zooms",
 		"connectZoomsDescription": "Suaviza regiones de zoom consecutivas convirtiéndolas en un movimiento continuo de cámara.",
 		"autoApplyFreshRecordingZooms": "Aplicar automáticamente zooms a nuevas grabaciones",
-		"autoApplyFreshRecordingZoomsDescription": "Sugiere automáticamente zooms de seguimiento del cursor al abrir una nueva grabación.",
+		"autoApplyFreshRecordingZoomsDescription": "Sugiere automáticamente zooms que se recentran al acercarse el cursor a los bordes al abrir una nueva grabación.",
 		"zoomGeneralTitle": "General",
 		"zoomGeneralDescription": "Ajustes globales de movimiento para todas las transiciones de zoom.",
 		"zoomInTitle": "Entrada",
@@ -60,18 +66,18 @@
 		"zoomOutDescription": "Controla cómo sale la cámara de una región de zoom.",
 		"connectedZoomTitle": "Entre zooms",
 		"connectedZoomDescription": "Ajusta el deslizamiento entre regiones de zoom consecutivas cuando la conexión está activada.",
-		"motionPresetsTitle": "Motion Presets",
-		"motionPresetsZoomHint": "Zoom motion presets are available in Settings.",
-		"animationPresets": "Animation Presets",
-		"cursorMotionPresets": "Cursor Motion Presets",
+		"motionPresetsTitle": "Preajustes",
+		"motionPresetsZoomHint": "Los preajustes de movimiento del zoom están disponibles en Ajustes.",
+		"animationPresets": "Preajustes de animación",
+		"cursorMotionPresets": "Preajustes de movimiento del cursor",
 		"motionPresets": {
 			"focused": {
-				"label": "Focused",
-				"description": "Snappier motion for demos, walkthroughs, and everyday recordings."
+				"label": "Preciso",
+				"description": "Movimiento más ágil para demostraciones, tutoriales y grabaciones cotidianas."
 			},
 			"smooth": {
-				"label": "Smooth",
-				"description": "Gentler motion for presentations, keynote-style videos, and polished reveals."
+				"label": "Cinematográfico",
+				"description": "Movimiento más suave, con trayectorias del cursor más rectas y menos cambios breves de estado al pasar el cursor."
 			}
 		},
 		"zoomInDuration": "Duración de entrada",
@@ -84,53 +90,64 @@
 		"connectedZoomEasing": "Curva del paneo conectado",
 		"zoomEasingOptions": {
 			"recordly": "Recordly",
-			"glide": "Glide",
+			"glide": "Deslizante",
 			"smooth": "Suave",
 			"snappy": "Rápida",
 			"linear": "Lineal"
 		},
 		"cursorSize": "Tamaño del cursor",
 		"cursorSmoothing": "Suavizado del cursor",
-		"cursorSpringStiffness": "Cursor Spring Stiffness",
-		"cursorSpringDamping": "Cursor Spring Damping",
-		"cursorSpringMass": "Cursor Spring Mass",
+		"cursorSpringStiffness": "Rigidez del resorte del cursor",
+		"cursorSpringDamping": "Amortiguación del resorte del cursor",
+		"cursorSpringMass": "Masa del resorte del cursor",
 		"off": "Desactivado",
 		"cursorClickEffects": {
-			"title": "Click Effects",
-			"advanced": "Advanced",
-			"advancedShow": "Show advanced click effect controls",
-			"advancedHide": "Hide advanced click effect controls",
-			"color": "Effect Color",
-			"size": "Effect Size",
-			"opacity": "Effect Opacity",
-			"duration": "Effect Duration",
+			"title": "Efectos de clic",
+			"advanced": "Avanzado",
+			"advancedShow": "Mostrar controles avanzados de efectos de clic",
+			"advancedHide": "Ocultar controles avanzados de efectos de clic",
+			"color": "Color del efecto",
+			"size": "Tamaño del efecto",
+			"opacity": "Opacidad del efecto",
+			"duration": "Duración del efecto",
 			"none": {
-				"label": "Off",
-				"description": "No click graphic. Only the cursor motion changes when you click."
+				"label": "Desactivado",
+				"description": "No se muestra ningún gráfico al hacer clic. Solo cambia el movimiento del cursor."
 			},
 			"ripple": {
-				"label": "Ripple",
-				"description": "Expanding rings radiate from each click so taps read clearly in motion."
+				"label": "Ondas",
+				"description": "Un círculo relleno se expande desde el punto del clic y se desvanece suavemente."
 			},
 			"spotlight": {
-				"label": "Spotlight",
-				"description": "A soft halo flashes around the pointer to emphasize the clicked area."
+				"label": "Foco",
+				"description": "Un halo suave destella alrededor del puntero para destacar la zona del clic."
+			},
+			"burst": {
+				"label": "Estallido",
+				"description": "Pequeños rayos salen hacia fuera desde el punto del clic."
 			},
 			"echo": {
-				"label": "Echo",
-				"description": "A pair of soft rings that spread outward with a cleaner pulse."
+				"label": "Eco",
+				"description": "Dos anillos suaves se expanden hacia fuera con un pulso más definido."
 			}
 		},
 		"cursorMotionBlur": "Desenfoque de movimiento del cursor",
-		"cursorClickBounce": "Rebote de clic del cursor",
+		"cursorClickBounce": "Escalar al hacer clic",
+		"cursorClickBounceStrength": "Intensidad de escala al hacer clic",
 		"cursorClickBounceDuration": "Velocidad del rebote",
 		"cursorSway": "Balanceo del cursor",
+		"cursorIdleHide": "Ocultar al estar inactivo",
+		"cursorIdleHideDescription": "Tras una breve espera, el cursor se desvanece durante las pausas largas. Al moverlo o hacer clic, vuelve a aparecer.",
+		"cursorIdleFadeDelay": "Espera antes del desvanecimiento",
+		"cursorIdleDuration": "Detección de inactividad",
+		"cursorIdleFadeDuration": "Duración del desvanecimiento",
+		"cursorIdleMovementTolerance": "Tolerancia de movimiento",
 		"webcam": "Superposición de cámara",
 		"webcamFootage": "Metraje de cámara",
 		"webcamFootageDescription": "No hay metraje de cámara vinculado a este video",
 		"uploadWebcamFootage": "Subir metraje",
 		"replaceWebcamFootage": "Reemplazar metraje",
-		"removeWebcamFootage": "Quitar metraje",
+		"removeWebcamFootage": "Quitar del proyecto",
 		"webcamFootageAdded": "Metraje de cámara vinculado",
 		"webcamFootageRemoved": "Metraje de cámara eliminado",
 		"webcamSize": "Tamaño de cámara",
@@ -139,6 +156,7 @@
 		"webcamCrop": "Recorte de cámara",
 		"webcamReactToZoom": "La cámara reacciona al zoom",
 		"webcamMirror": "Reflejar cámara",
+		"showWebcam": "Mostrar cámara web",
 		"webcamRoundness": "Redondez de cámara",
 		"webcamShadow": "Sombra de cámara",
 		"shadow": "Sombra",
@@ -151,7 +169,50 @@
 		"paddingBottom": "Inferior",
 		"paddingLeft": "Izquierdo",
 		"paddingRight": "Derecho",
-		"removeBackground": "Quitar fondo"
+		"removeBackground": "Quitar fondo",
+		"devSection": "Desarrollo",
+		"nativeCaptureWarningTester": "Advertencia de captura nativa",
+		"nativeCaptureWarningTesterUnavailable": "Este proyecto está marcado actualmente como no compatible con la captura nativa.",
+		"nativeCaptureWarningTesterAvailable": "Este proyecto no está marcado como no compatible, pero puedes abrir el diálogo para probar la interfaz.",
+		"openNativeCaptureWarning": "Abrir advertencia",
+		"cameraDebugTuning": "Ajuste de depuración de cámara",
+		"cameraSpringStiffnessMultiplier": "Rigidez de cámara",
+		"cameraSpringDampingMultiplier": "Amortiguación de cámara",
+		"cameraSpringMassMultiplier": "Masa de cámara",
+		"cursorDebugTuning": "Ajuste de depuración del cursor",
+		"cursorSpringStiffnessMultiplier": "Rigidez del resorte",
+		"cursorSpringDampingMultiplier": "Amortiguación del resorte",
+		"cursorSpringMassMultiplier": "Masa del resorte",
+		"classicZoom": "Animación clásica",
+		"webcamShape": "Forma",
+		"webcamCircle": "Círculo",
+		"webcamRectangle": "Rectángulo",
+		"webcamSquircle": "Cuadrado",
+		"webcamPosition": "Posición",
+		"webcamCustomPosition": "Posición personalizada",
+		"webcamHorizontal": "Horizontal",
+		"webcamVertical": "Vertical",
+		"webcamMargin": "Margen",
+		"webcamVideo": "Vídeo de cámara web",
+		"webcamSource": "Origen de la cámara",
+		"changeWebcamSource": "Cambiar origen",
+		"addWebcamVideo": "Añadir un vídeo de cámara web",
+		"webcamVideoHint": "Usa la grabación de tu cámara o añade un vídeo para mostrarlo junto a la pantalla.",
+		"webcamDragHint": "También puedes arrastrar la cámara web en la vista previa.",
+		"webcamPositions": {
+			"top-left": "Arriba a la izquierda",
+			"top-center": "Arriba en el centro",
+			"top-right": "Arriba a la derecha",
+			"center-left": "Centro a la izquierda",
+			"center": "Centro",
+			"center-right": "Centro a la derecha",
+			"bottom-left": "Abajo a la izquierda",
+			"bottom-center": "Abajo en el centro",
+			"bottom-right": "Abajo a la derecha"
+		},
+		"webcamPreviewFrame": "Marco",
+		"webcamFrameStandard": "Estándar",
+		"webcamFrameSoftBlur": "Desenfoque suave"
 	},
 	"sections": {
 		"scene": "Escena",
@@ -161,9 +222,15 @@
 		"cursor": "Cursor",
 		"webcam": "Cámara",
 		"frame": "Marco",
-		"crop": "Recorte"
+		"crop": "Recorte",
+		"settings": "Ajustes",
+		"appearance": "Apariencia",
+		"title": "Herramientas de edición"
 	},
 	"captions": {
+		"firstDownload": "El primer uso descarga {{size}} MB de archivos de voz y luego genera los subtítulos.",
+		"downloadAndGenerate": "Descargar {{size}} MB y generar subtítulos",
+		"localProcessing": "Los subtítulos se generan en este dispositivo. Tu grabación no se sube.",
 		"selectOnTimeline": "Selecciona un subtítulo en la línea de tiempo para editarlo.",
 		"enabled": "Mostrar",
 		"timelineQuickAdd": "Pasar el cursor para añadir en la línea de tiempo",
@@ -187,17 +254,33 @@
 		"animationRise": "Elevar",
 		"animationPop": "Resaltar",
 		"bottomOffset": "Desplazamiento inferior",
+		"horizontalPosition": "Posición horizontal",
+		"verticalPosition": "Posición vertical",
 		"maxWidth": "Ancho máximo",
 		"boxRadius": "Radio del contenedor",
 		"backgroundOpacity": "Opacidad del fondo",
 		"textColor": "Color del texto",
 		"editor": {
-			"text": "Text",
-			"start": "Start",
-			"end": "End",
-			"split": "Split",
-			"merge": "Merge",
-			"delete": "Delete"
+			"text": "Texto",
+			"start": "Inicio",
+			"end": "Fin",
+			"split": "Dividir",
+			"merge": "Combinar",
+			"delete": "Eliminar"
+		},
+		"generation": "Generación",
+		"useCustomModel": "Usar personalizado",
+		"generatingStatus": "Generando subtítulos. Esto puede tardar un momento.",
+		"editSaved": "Subtítulo actualizado",
+		"cueCount": "{{count}} subtítulos",
+		"oneCaption": "1 subtítulo",
+		"empty": "Aún no hay subtítulos",
+		"speechModel": "Modelo de voz",
+		"wordTiming": "Tiempos por palabra",
+		"modelLanguages": {
+			"parakeet-v3": "25 idiomas europeos",
+			"whisper-base": "Multilingüe · 99 idiomas",
+			"whisper-small": "Multilingüe · 99 idiomas"
 		}
 	},
 	"crop": {
@@ -207,7 +290,15 @@
 		"bottom": "Inferior",
 		"left": "Izquierda",
 		"right": "Derecha",
-		"openEditor": "Abrir editor de recorte"
+		"openEditor": "Abrir editor de recorte",
+		"details": "Detalles del recorte",
+		"inlineHint": "Arrastra bordes o esquinas · Mantén Mayús para un cuadrado",
+		"aspectRatio": "Relación de aspecto",
+		"ratioWidth": "Anchura",
+		"ratioHeight": "Altura",
+		"ratioHint": "Elige un preajuste o introduce tu propia proporción (de 1:20 a 20:1).",
+		"freeform": "Libre",
+		"pixelFields": "Píxeles"
 	},
 	"background": {
 		"title": "Fondo",
@@ -218,29 +309,69 @@
 		"uploadCustom": "Subir personalizado",
 		"uploadSuccess": "¡Imagen personalizada subida exitosamente!",
 		"uploadError": "Por favor sube un archivo de imagen JPG o JPEG.",
-		"uploadErrorDescription": "Solo se admiten imágenes JPG y JPEG."
+		"uploadErrorDescription": "Solo se admiten imágenes JPG y JPEG.",
+		"wallpaperImportError": "No se pudo añadir el fondo",
+		"unsupportedWallpaper": "No se pudo abrir este fondo. Prueba con JPEG, PNG, WebP, AVIF, GIF, SVG, BMP, HEIC/HEIF o un vídeo compatible como MP4 o WebM.",
+		"video": "Vídeo",
+		"addWallpaper": "Añadir fondo",
+		"addVideoWallpaper": "Añadir fondo de vídeo",
+		"customWallpaper": "Fondo personalizado",
+		"details": "Detalles del fondo"
 	},
 	"export": {
 		"title": "Exportar",
 		"mp4": "MP4",
 		"gif": "GIF",
 		"quality": {
-			"low": "Baja",
-			"medium": "Media",
-			"high": "Alta",
+			"low": "FHD",
+			"medium": "QHD",
+			"high": "4K",
 			"original": "Original"
 		},
 		"fpsTitle": "FPS",
 		"loop": "Bucle",
 		"outputDimensions": "Salida: {{dimensions}}px",
-		"sizePresetOriginalShort": "Orig",
-		"sizePresetMediumShort": "Med",
+		"upToResolution": "Hasta {{height}}p",
+		"sizePresetOriginalShort": "Orig.",
+		"sizePresetMediumShort": "Med.",
 		"sizePresetLargeShort": "Gra",
 		"loadProject": "Cargar proyecto",
 		"saveProject": "Guardar proyecto",
 		"exportVideo": "Exportar {{format}}",
 		"reportBug": "Reportar error",
-		"starOnGithub": "Estrella en GitHub"
+		"starOnGithub": "Estrella en GitHub",
+		"estimatedFileSize": "Tamaño de archivo estimado",
+		"estimating": "Calculando…",
+		"estimateUnavailable": "No disponible",
+		"format": "Formato",
+		"resolutionTitle": "Resolución",
+		"advanced": "Avanzado",
+		"advancedResolution": "Resolución avanzada",
+		"customResolution": "Personalizada",
+		"customResolutionHint": "La anchura y la altura se mantienen vinculadas a la relación de aspecto del lienzo. Usa dimensiones pares de 2 a 8192 píxeles.",
+		"invalidCustomResolution": "Introduce dimensiones pares entre 2 y 8192 píxeles.",
+		"encodingTitle": "Codificación",
+		"nvidiaCuda": {
+			"title": "NVIDIA CUDA"
+		},
+		"captionSidecar": {
+			"title": "Exportar archivo de subtítulos",
+			"hint": "Guarda los archivos .srt y .vtt junto al vídeo exportado."
+		},
+		"size": "Tamaño",
+		"optimizeTargetHint": "Busca reducir el tamaño un 90% disminuyendo los colores y la resolución. El tamaño real puede variar.",
+		"optimizeSize": "Optimizar tamaño",
+		"optimizeSizeFailed": "Optimización no disponible. Se conservó el GIF original.",
+		"optimizeSizeSaved": "Se ahorraron {{size}} (un {{percent}}% menos)",
+		"optimizeSizeUnchanged": "0% menos: el GIF original ya era compacto.",
+		"optimizeTargetMissed": "Objetivo no alcanzado",
+		"customWidth": "Anchura (px)",
+		"customHeight": "Altura (px)",
+		"encoding": {
+			"fast": "Rápida",
+			"balanced": "Equilibrada",
+			"quality": "Calidad"
+		}
 	},
 	"audio": {
 		"title": "Audio",
@@ -254,6 +385,18 @@
 		"deleteRegion": "Eliminar audio"
 	},
 	"updates": {
+		"changeVersion": "Cambiar versión",
+		"versionInstallHint": "Descarga una versión y abre el instalador para cambiar de versión.",
+		"loadingVersions": "Cargando versiones…",
+		"version": "Versión",
+		"prereleaseVersion": "Versión preliminar",
+		"noVersions": "No hay versiones compatibles disponibles para esta instalación.",
+		"versionFailed": "No se pudo cargar o descargar esta versión. Inténtalo de nuevo.",
+		"downloadInstaller": "Descargar instalador",
+		"loadFailed": "No se pudo cargar el canal de actualizaciones. Inténtalo de nuevo.",
+		"automaticDownloads": "Descargar actualizaciones automáticamente",
+		"automaticDownloadsDescription": "Descarga las nuevas actualizaciones en segundo plano. Tú decides cuándo reiniciar.",
+		"downloadPreferenceFailed": "No se pudo cargar o guardar la descarga automática de actualizaciones. Inténtalo de nuevo.",
 		"experimentalDescription": "Has activado las actualizaciones experimentales, así que puedes probar la actualización más reciente de Recordly antes de que esté disponible para todos.",
 		"title": "Actualizaciones",
 		"experimental": "Actualizaciones experimentales",

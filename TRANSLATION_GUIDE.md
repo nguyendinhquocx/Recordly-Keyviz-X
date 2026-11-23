@@ -4,7 +4,11 @@ This project uses a namespace-based i18n setup so contributors can localize safe
 
 ## Locale Files
 
-All locale files live under:
+Each locale has a directory under [`src/i18n/locales/`](src/i18n/locales/). See
+[`src/i18n/config.ts`](src/i18n/config.ts) for the supported locale codes
+(`SUPPORTED_LOCALES`) and required namespace files (`I18N_NAMESPACES`).
+The [English catalog](src/i18n/locales/en/) defines the key structure for each
+namespace.
 
 - `src/i18n/locales/en/`
 - `src/i18n/locales/vi/`
@@ -46,15 +50,17 @@ Run:
 
 ```bash
 npm run i18n:check
+npm run typecheck
 ```
 
-This checks for:
+`i18n:check` validates namespace files for locales in `SUPPORTED_LOCALES`.
+It checks key parity with English, nonempty strings, matching interpolation
+placeholders, and literal keys in recognized translation calls under `src`.
+Check dynamic and native dialog text in the running app. A directory alone can
+pass unnoticed until its code is registered. TypeScript checks that the
+language label, flag's country mapping, and native catalog cover each locale.
 
-- Missing namespace files
-- Missing keys compared to `en`
-- Extra keys not present in `en`
-
-## Contributor Workflow
+## Update Existing Translations
 
 1. Pull latest `main`.
 2. Update `en/<namespace>.json` with new keys if needed.

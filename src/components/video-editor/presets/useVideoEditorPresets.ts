@@ -43,6 +43,7 @@ export function useVideoEditorPresets({
 			connectedZoomEasing: appearance.connectedZoomEasing,
 			showCursor: appearance.showCursor,
 			loopCursor: appearance.loopCursor,
+			alwaysUsePointerCursor: appearance.alwaysUsePointerCursor,
 			cursorStyle: appearance.cursorStyle,
 			cursorSize: appearance.cursorSize,
 			cursorSmoothing: appearance.cursorSmoothing,
@@ -61,12 +62,17 @@ export function useVideoEditorPresets({
 			cursorClickBounce: appearance.cursorClickBounce,
 			cursorClickBounceDuration: appearance.cursorClickBounceDuration,
 			cursorSway: appearance.cursorSway,
+			cursorIdleHide: appearance.cursorIdleHide,
 			borderRadius: appearance.borderRadius,
 			borderRadiusUnit: "percent",
 			padding: { ...appearance.padding },
 			cropRegion: { ...appearance.cropRegion },
-			webcam: (({ sourcePath: _sourcePath, visibleRanges: _visibleRanges, ...settings }) =>
-				settings)(appearance.webcam),
+			webcam: (({
+				sourcePath: _sourcePath,
+				visibleRanges: _visibleRanges,
+				loop: _loop,
+				...settings
+			}) => settings)(appearance.webcam),
 			aspectRatio,
 			autoCaptionSettings: { ...timeline.autoCaptionSettings },
 		}),
@@ -91,6 +97,7 @@ export function useVideoEditorPresets({
 			appearance.setConnectedZoomEasing(snapshot.connectedZoomEasing);
 			appearance.setShowCursor(snapshot.showCursor);
 			appearance.setLoopCursor(snapshot.loopCursor);
+			appearance.setAlwaysUsePointerCursor(snapshot.alwaysUsePointerCursor);
 			appearance.setCursorStyle(snapshot.cursorStyle);
 			appearance.setCursorSize(snapshot.cursorSize);
 			appearance.setCursorSmoothing(snapshot.cursorSmoothing);
@@ -109,6 +116,7 @@ export function useVideoEditorPresets({
 			appearance.setCursorClickBounce(snapshot.cursorClickBounce);
 			appearance.setCursorClickBounceDuration(snapshot.cursorClickBounceDuration);
 			appearance.setCursorSway(snapshot.cursorSway);
+			appearance.setCursorIdleHide(snapshot.cursorIdleHide);
 			appearance.setBorderRadius(snapshot.borderRadius);
 			appearance.setPadding({ ...snapshot.padding });
 			appearance.setCropRegion({ ...snapshot.cropRegion });
@@ -116,6 +124,7 @@ export function useVideoEditorPresets({
 				...snapshot.webcam,
 				sourcePath: current.sourcePath,
 				visibleRanges: current.visibleRanges,
+				loop: current.loop,
 			}));
 			setAspectRatio(snapshot.aspectRatio);
 			timeline.setAutoCaptionSettings({ ...snapshot.autoCaptionSettings });

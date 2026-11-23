@@ -1,141 +1,44 @@
-import { fixWebmDuration } from "@fix-webm-duration/fix";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "@/components/ui/toast";
-import { getEffectiveRecordingDurationMs } from "@/lib/mediaTiming";
-import {
-	getVideoExtensionForMimeType,
-	isWebmMimeType,
-	selectRecordingMimeType,
-	selectWebcamRecordingMimeType,
-} from "./recordingMimeType";
+import { useRecorderCaptureSetup } from "./useRecorderCaptureSetup";
+import { useRecorderClock } from "./useRecorderClock";
+import { useRecorderControls } from "./useRecorderControls";
+import { useRecorderEditorSession } from "./useRecorderEditorSession";
+import { useRecorderMediaCleanup } from "./useRecorderMediaCleanup";
+import { useRecorderPreferences } from "./useRecorderPreferences";
+import { useRecorderStartup } from "./useRecorderStartup";
+import { useRecorderState } from "./useRecorderState";
+import { useRecorderStop } from "./useRecorderStop";
+import { useRecorderSubscriptions } from "./useRecorderSubscriptions";
+import { useRecorderWebcam } from "./useRecorderWebcam";
 
-const TARGET_FRAME_RATE = 60;
-const TARGET_WIDTH = 3840;
-const TARGET_HEIGHT = 2160;
-const FOUR_K_PIXELS = TARGET_WIDTH * TARGET_HEIGHT;
-const QHD_WIDTH = 2560;
-const QHD_HEIGHT = 1440;
-const QHD_PIXELS = QHD_WIDTH * QHD_HEIGHT;
-const BITRATE_4K = 45_000_000;
-const BITRATE_QHD = 28_000_000;
-const BITRATE_BASE = 18_000_000;
-const HIGH_FRAME_RATE_THRESHOLD = 60;
-const HIGH_FRAME_RATE_BOOST = 1.7;
-const DEFAULT_WIDTH = 1920;
-const DEFAULT_HEIGHT = 1080;
-const CODEC_ALIGNMENT = 2;
-const RECORDER_TIMESLICE_MS = 250;
-const BITS_PER_MEGABIT = 1_000_000;
-const MIN_FRAME_RATE = 30;
-const CHROME_MEDIA_SOURCE = "desktop";
-const RECORDING_FILE_PREFIX = "recording-";
-const AUDIO_BITRATE_VOICE = 128_000;
-const AUDIO_BITRATE_SYSTEM = 192_000;
-const MIC_GAIN_BOOST = 1.4;
-const WEBCAM_BITRATE = 8_000_000;
-const WEBCAM_WIDTH = 1280;
-const WEBCAM_HEIGHT = 720;
-const WEBCAM_FRAME_RATE = 30;
-const WEBCAM_SUFFIX = "-webcam";
-const MICROPHONE_FALLBACK_ERROR_TOAST_ID = "recording-microphone-fallback-error";
-const MICROPHONE_SIDECAR_ERROR_TOAST_ID = "recording-microphone-sidecar-error";
-export type BrowserMicrophoneProfile =
-	| "processed"
-	| "no-agc"
-	| "no-echo"
-	| "no-noise-suppression"
-	| "raw";
-type BrowserCaptureCursorMode = "always" | "never";
-export type BrowserCaptureCursorPolicy = {
-	streamCursor: BrowserCaptureCursorMode;
-	hideOsCursorBeforeRecording: boolean;
-	hideEditorOverlayCursorByDefault: boolean;
-};
-const DEFAULT_BROWSER_MICROPHONE_PROFILE: BrowserMicrophoneProfile = "processed";
-const BROWSER_MICROPHONE_PROFILES = new Set<BrowserMicrophoneProfile>([
-	"processed",
-	"no-agc",
-	"no-echo",
-	"no-noise-suppression",
-	"raw",
-]);
-type MicrophoneTrackSettingsSnapshot = Partial<
-	Pick<
-		MediaTrackSettings,
-		| "autoGainControl"
-		| "channelCount"
-		| "deviceId"
-		| "echoCancellation"
-		| "groupId"
-		| "noiseSuppression"
-		| "sampleRate"
-		| "sampleSize"
-	>
-> & {
-	trackId?: string;
-	trackLabel?: string;
-	trackEnabled?: boolean;
-	trackMuted?: boolean;
-	trackReadyState?: MediaStreamTrackState;
-};
-type MicrophoneAudioInputDeviceSnapshot = {
-	deviceId: string;
-	groupId?: string;
-	label: string;
-};
-type MicrophoneFallbackChunkEvent = {
-	index: number;
-	size: number;
-	elapsedMs: number;
-	deltaMs: number | null;
-	recordedElapsedMs: number;
-	recordedDeltaMs: number | null;
-};
-type MicrophoneFallbackPauseInterval = {
-	startElapsedMs: number;
-	endElapsedMs?: number;
-	durationMs?: number;
-};
-type MicrophoneFallbackRecorderMetadata = {
-	mimeType: string;
-	audioBitsPerSecond: number;
-	timesliceMs: number;
-};
-type MicrophoneSidecarOptions = {
-	startDelayMs?: number;
-	browserMicrophoneProfile?: BrowserMicrophoneProfile;
-	requestedBrowserMicrophoneProfile?: string | null;
-	requestedConstraints?: MediaStreamConstraints;
-	mediaTrackSettings?: MicrophoneTrackSettingsSnapshot;
-	audioInputDevices?: MicrophoneAudioInputDeviceSnapshot[];
-	mediaRecorder?: MicrophoneFallbackRecorderMetadata;
-	chunkEvents?: MicrophoneFallbackChunkEvent[];
-	pauseIntervals?: MicrophoneFallbackPauseInterval[];
-};
-const LINUX_PORTAL_SOURCE: ProcessedDesktopSource = {
-	id: "screen:linux-portal",
-	name: "Linux Portal",
-	display_id: "",
-	thumbnail: null,
-	appIcon: null,
-	sourceType: "screen",
-};
-
-type DesktopCaptureMediaDevices = {
-	getUserMedia: (constraints: unknown) => Promise<MediaStream>;
-	getDisplayMedia: (constraints: unknown) => Promise<MediaStream>;
-};
+export {
+	type BrowserCaptureCursorPolicy,
+	createBrowserRecordingOptions,
+	resolveBrowserCaptureCursorPolicy,
+	shouldUseNativeWindowsCaptureForSource,
+} from "./recorderCaptureOptions";
+export {
+	type BrowserMicrophoneProfile,
+	createProcessedMicrophoneConstraints,
+	normalizeBrowserMicrophoneProfile,
+} from "./recordingMicrophoneFallback";
+export {
+	type DiscardNativeCaptureResult,
+	stopAndDiscardNativeCapture,
+} from "./recordingNativeCleanup";
 
 type UseScreenRecorderReturn = {
 	recording: boolean;
 	paused: boolean;
 	finalizing: boolean;
+	restarting: boolean;
+	restartRecording: () => Promise<boolean>;
 	countdownActive: boolean;
 	toggleRecording: () => void;
 	pauseRecording: () => void;
 	resumeRecording: () => void;
-	cancelRecording: () => void;
-	preparePermissions: (options?: { startup?: boolean }) => Promise<boolean>;
+	cancelRecording: () => Promise<boolean>;
+	cancelRecordingStart: () => Promise<boolean>;
+	preparePermissions: () => Promise<boolean>;
 	isMacOS: boolean;
 	microphoneEnabled: boolean;
 	setMicrophoneEnabled: (enabled: boolean) => void;
@@ -144,6 +47,7 @@ type UseScreenRecorderReturn = {
 	systemAudioEnabled: boolean;
 	setSystemAudioEnabled: (enabled: boolean) => void;
 	webcamEnabled: boolean;
+	webcamRecordingError: string | null;
 	setWebcamEnabled: (enabled: boolean) => void;
 	webcamDeviceId: string | undefined;
 	setWebcamDeviceId: (deviceId: string | undefined) => void;
@@ -2520,6 +2424,8 @@ export function useScreenRecorder(keyviz?: KeyvizSidecarRecorderControl): UseScr
 
 	return {
 		recording,
+		restarting,
+		restartRecording,
 		paused,
 		finalizing,
 		countdownActive,
@@ -2527,6 +2433,35 @@ export function useScreenRecorder(keyviz?: KeyvizSidecarRecorderControl): UseScr
 		pauseRecording,
 		resumeRecording,
 		cancelRecording,
+		cancelRecordingStart,
+		preparePermissions,
+		isMacOS,
+		microphoneEnabled,
+		persistMicrophoneEnabled,
+		microphoneDeviceId,
+		persistMicrophoneDeviceId,
+		systemAudioEnabled,
+		persistSystemAudioEnabled,
+		webcamEnabled,
+		webcamRecordingError,
+		persistWebcamEnabled,
+		webcamDeviceId,
+		persistWebcamDeviceId,
+		countdownDelay,
+		setCountdownDelay,
+	} = { ...context, ...controls };
+	return {
+		recording,
+		restarting,
+		restartRecording,
+		paused,
+		finalizing,
+		countdownActive,
+		toggleRecording,
+		pauseRecording,
+		resumeRecording,
+		cancelRecording,
+		cancelRecordingStart,
 		preparePermissions,
 		isMacOS,
 		microphoneEnabled,
@@ -2536,6 +2471,7 @@ export function useScreenRecorder(keyviz?: KeyvizSidecarRecorderControl): UseScr
 		systemAudioEnabled,
 		setSystemAudioEnabled: persistSystemAudioEnabled,
 		webcamEnabled,
+		webcamRecordingError,
 		setWebcamEnabled: persistWebcamEnabled,
 		webcamDeviceId,
 		setWebcamDeviceId: persistWebcamDeviceId,

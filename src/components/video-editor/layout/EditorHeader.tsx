@@ -1,14 +1,20 @@
-import { FeedbackDialog } from "@/components/feedback/FeedbackDialog";
 import { Separator } from "@heroui/react";
 import {
-	House,
-	FilmStrip,
-	ArrowClockwise as Redo2,
-	ArrowCounterClockwise as Undo2,
-} from "@/components/ui/icons";
-import type { CSSProperties, FormEvent, RefObject } from "react";
+	type FormEvent,
+	type ReactNode,
+	type RefObject,
+	useId,
+	useLayoutEffect,
+	useRef,
+} from "react";
+import { useFocusRing } from "react-aria";
+import { UpgradeButton } from "@/components/billing/UpgradeButton";
+import { FeedbackDialog } from "@/components/feedback/FeedbackDialog";
 import { Button } from "@/components/ui/button";
+import { FilmStrip, House, ArrowCounterClockwise as Undo2 } from "@/components/ui/icons";
+import { RecordlyMark } from "@/components/ui/RecordlyMark";
 import type { useI18n } from "@/contexts/I18nContext";
+import { useI18n as useUiLocale } from "@/contexts/I18nContext";
 import type { useExportDimensions } from "../export/useExportDimensions";
 import type { useExportSession } from "../export/useExportSession";
 import type { useExportSettings } from "../export/useExportSettings";
@@ -26,6 +32,8 @@ import { EditorPresetMenu } from "./EditorPresetMenu";
 const SHOW_PRESETS_BUTTON = false;
 
 type Props = {
+	accountMenu?: ReactNode;
+	projectRevision?: string;
 	clipsOpen: boolean;
 	onToggleClips: () => void;
 	t: ReturnType<typeof useI18n>["t"];
@@ -34,10 +42,12 @@ type Props = {
 	projectBrowserTriggerRef: RefObject<HTMLButtonElement | null>;
 	projectNameInputRef: RefObject<HTMLInputElement | null>;
 	projectDisplayName: string;
+	videoPlaybackRef: RefObject<VideoPlaybackRef | null>;
 	hasUnsavedChanges: boolean;
 	canUndo: boolean;
 	canRedo: boolean;
 	handleOpenProjectBrowser: () => void;
+	handleOpenRecordingHud: () => Promise<void>;
 	handleUndo: () => void;
 	handleRedo: () => void;
 	handleProjectNameSubmit: (event?: FormEvent<HTMLFormElement>) => void;
@@ -63,12 +73,14 @@ type Props = {
 	};
 	prepareExportForShare: () => Promise<string | undefined>;
 	onRequestShareSignIn: () => void;
+	onRequestFeedbackSignIn: () => void;
 	shareRequestNonce: number;
 	authToken?: string;
 	accountId?: string;
 };
 
 export function EditorHeader(props: Props) {
+	const { t: uiText } = useUiLocale();
 	const {
 		t,
 		headerLeftControlsPaddingClass,
@@ -79,6 +91,7 @@ export function EditorHeader(props: Props) {
 		canUndo,
 		canRedo,
 		handleOpenProjectBrowser,
+		handleOpenRecordingHud,
 		handleUndo,
 		handleRedo,
 		handleProjectNameSubmit,
@@ -108,15 +121,26 @@ export function EditorHeader(props: Props) {
 		setProjectNameDraft,
 		isSavingProjectName,
 	} = project;
+	const { isFocusVisible, focusProps } = useFocusRing({ isTextInput: true });
+	const projectTitleId = useId();
+	const renameButtonRef = useRef<HTMLButtonElement>(null);
+	const restoreRenameFocus = useRef(false);
+	useLayoutEffect(() => {
+		if (!isEditingProjectName && restoreRenameFocus.current) {
+			restoreRenameFocus.current = false;
+			renameButtonRef.current?.focus();
+		}
+	}, [isEditingProjectName]);
+
+	const recordingUnavailable =
+		exportSession.isExporting ||
+		exportSession.isOptimizingGif ||
+		exportSession.hasPendingExportSave;
 
 	return (
-		<header
-			className="editor-header [--text-sm:0.8125rem] relative z-50 grid h-14 shrink-0 border-b border-separator grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4"
-			style={{ WebkitAppRegion: "drag" } as CSSProperties}
-		>
+		<AppFrameHeader className="editor-header">
 			<div
 				className={`editor-header-start flex min-w-0 items-center gap-1 ${headerLeftControlsPaddingClass}`}
-				style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
 			>
 				<Button
 					ref={projectBrowserTriggerRef}
@@ -140,19 +164,21 @@ export function EditorHeader(props: Props) {
 
 				<div
 					className="editor-header-title flex min-w-0 items-center"
-					style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
+					title={isEditingProjectName ? undefined : projectDisplayName}
 				>
 					{isEditingProjectName ? (
 						<form
 							onSubmit={(event) => void handleProjectNameSubmit(event)}
-							className="flex w-full min-w-0 items-center gap-1.5 px-1"
+							className="flex w-full min-w-0 items-center gap-1.5 px-2"
 						>
 							<input
+								{...focusProps}
 								ref={projectNameInputRef}
 								type="text"
 								value={projectNameDraft}
 								onChange={(event) => setProjectNameDraft(event.target.value)}
-								onBlur={() => {
+								onBlur={(event) => {
+									focusProps.onBlur?.(event);
 									if (
 										!isSavingProjectName &&
 										projectNameDraft.trim() !== projectDisplayName
@@ -163,49 +189,62 @@ export function EditorHeader(props: Props) {
 								onKeyDown={(event) => {
 									if (event.key === "Escape") {
 										event.preventDefault();
+										restoreRenameFocus.current = true;
 										closeProjectNameEditor();
 									}
 								}}
 								disabled={isSavingProjectName}
 								className="inline-project-name h-9 min-w-0 max-w-full text-sm font-semibold tracking-tight text-foreground/90 disabled:cursor-wait"
-								style={{ width: `${Math.max(12, projectNameDraft.length + 1)}ch` }}
+								data-focus-visible={isFocusVisible || undefined}
 								aria-label={t("editor.project.renameInput", "Project name")}
 							/>
 						</form>
 					) : (
 						<Button
+							ref={renameButtonRef}
 							variant="ghost"
 							type="button"
 							onClick={() => setIsEditingProjectName(true)}
-							className="inline-flex h-9 min-w-0 max-w-full items-center gap-1.5 rounded-lg px-2"
-							title={t("editor.project.renameTitle", "Rename project")}
+							className="inline-flex h-9 min-w-0 max-w-full cursor-text items-center gap-1.5 rounded-lg px-2 hover:bg-transparent"
 							aria-label={t("editor.project.renameTitle", "Rename project")}
+							aria-describedby={projectTitleId}
 						>
-							<span className="truncate text-sm font-semibold tracking-tight text-foreground/90">
+							<span
+								id={projectTitleId}
+								className="truncate text-sm font-semibold tracking-tight text-foreground/90"
+							>
 								{projectDisplayName}
 							</span>
 						</Button>
 					)}
 				</div>
 				<Separator orientation="vertical" className="mx-3 h-5 shrink-0 self-center" />
-				<Button
-					variant="secondary"
-					size="sm"
-					className="h-9 shrink-0 gap-2"
-					aria-expanded={props.clipsOpen}
-					onClick={props.onToggleClips}
-				>
-					<FilmStrip weight={props.clipsOpen ? "fill" : "regular"} className="size-4" />
-					Clips
-				</Button>
+				<span className="contents" title={uiText("ui.clips")}>
+					<Button
+						variant="ghost"
+						size="sm"
+						className={`editor-header-icon-button h-8 shrink-0 gap-2 rounded-lg border px-3 text-xs font-medium transition-colors ${props.clipsOpen ? "border-foreground/20 bg-foreground/10 text-foreground" : "border-border bg-transparent text-muted hover:bg-foreground/5 hover:text-foreground"}`}
+						aria-label={uiText("ui.clips")}
+						aria-expanded={props.clipsOpen}
+						onClick={props.onToggleClips}
+					>
+						<FilmStrip
+							weight={props.clipsOpen ? "fill" : "regular"}
+							className="size-4"
+						/>
+						<span className="editor-header-button-label">{uiText("ui.clips")}</span>
+					</Button>
+				</span>
 			</div>
 
-			<div
-				className="editor-header-end flex min-w-0 items-center justify-self-end gap-3"
-				style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
-			>
+			<div className="editor-header-end flex min-w-0 items-center justify-self-end gap-3">
+				<UpgradeButton
+					label={uiText("billing.upgradeButtonLabel", "Upgrade")}
+					variant="secondary"
+					size="sm"
+					className="h-9 gap-1.5"
+				/>
 				<div className="flex items-center gap-1">
-					<Separator orientation="vertical" className="mx-3 h-5 shrink-0 self-center" />
 					<Button
 						type="button"
 						variant="ghost"
@@ -226,13 +265,18 @@ export function EditorHeader(props: Props) {
 						title={t("common.actions.redo", "Redo")}
 						aria-label={t("common.actions.redo", "Redo")}
 					>
-						<Redo2 className="h-4 w-4" />
+						<Undo2 mirrored className="h-4 w-4" />
 					</Button>
 				</div>
 				{SHOW_PRESETS_BUTTON && <EditorPresetMenu t={t} presets={presets} />}
-				<FeedbackDialog />
+				<FeedbackDialog
+					showLabel={false}
+					className="h-9 w-9 min-w-9"
+					onSignIn={props.onRequestFeedbackSignIn}
+				/>
 				<EditorExportMenu
 					t={t}
+					videoPlaybackRef={props.videoPlaybackRef}
 					exportSettings={exportSettings}
 					exportSession={exportSession}
 					exportDimensions={exportDimensions}
@@ -250,6 +294,9 @@ export function EditorHeader(props: Props) {
 					exportMessage={exportMessage}
 					batchExport={batchExport}
 					projectPath={project.currentProjectPath}
+					projectSourcePath={project.videoSourcePath}
+					openedSavedProject={project.openedSavedProject}
+					projectRevision={props.projectRevision}
 					projectTitle={projectDisplayName}
 					prepareExportForShare={props.prepareExportForShare}
 					onRequestShareSignIn={props.onRequestShareSignIn}
@@ -257,7 +304,9 @@ export function EditorHeader(props: Props) {
 					authToken={props.authToken}
 					accountId={props.accountId}
 				/>
+				{props.accountMenu}
+				<AppUpdateButton />
 			</div>
-		</header>
+		</AppFrameHeader>
 	);
 }

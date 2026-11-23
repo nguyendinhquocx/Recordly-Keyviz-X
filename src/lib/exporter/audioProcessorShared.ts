@@ -5,7 +5,8 @@ import type {
 	SourceAudioTrackSettings,
 	TrimRegion,
 } from "@/components/video-editor/types";
-import type { SourceTrackId } from "@/lib/exporter/audioRoutingEngine";
+
+export type SourceTrackId = "mic" | "system" | "mixed";
 
 export const AUDIO_BITRATE = 128_000;
 export const DECODE_BACKPRESSURE_LIMIT = 20;
@@ -15,6 +16,18 @@ export const MP4_AUDIO_CODEC = "mp4a.40.2";
 export const OFFLINE_AUDIO_SAMPLE_RATE = 48_000;
 export const OFFLINE_ENCODE_CHUNK_FRAMES = 1024;
 export const OFFLINE_CHUNK_DURATION_SEC = 30;
+export const MAX_CODEC_PRIMING_OFFSET_US = 45_000;
+
+export function resolveAudioTimestampOffsetUs(firstChunkTimestampUs: number): number {
+	if (firstChunkTimestampUs < 0) {
+		return firstChunkTimestampUs;
+	}
+	if (firstChunkTimestampUs <= MAX_CODEC_PRIMING_OFFSET_US) {
+		return firstChunkTimestampUs;
+	}
+	return 0;
+}
+
 const OFFLINE_MIX_SOFT_LIMITER_THRESHOLD = 0.9;
 const OFFLINE_MIX_SOFT_LIMITER_CEILING = 0.985;
 
@@ -68,6 +81,7 @@ export function resolveSourceTrackGain(
 
 export function getSourceTrackIdFromPath(audioPath: string): SourceTrackId {
 	const normalized = audioPath.toLowerCase();
+	const filename = normalized.split(/[\\/]/).pop() ?? normalized;
 	// Check for common patterns like .mic., -mic., mic.mp4, etc.
 	if (
 		normalized.includes(".mic.") ||
@@ -75,9 +89,7 @@ export function getSourceTrackIdFromPath(audioPath: string): SourceTrackId {
 		normalized.includes("_mic_") ||
 		normalized.includes("/mic.") ||
 		normalized.includes("\\mic.") ||
-		normalized.endsWith("mic.mp4") ||
-		normalized.endsWith("mic.m4a") ||
-		normalized.endsWith("mic.wav")
+		/(?:^|[._-])mic\.(?:mp4|m4a|wav)$/.test(filename)
 	) {
 		return "mic";
 	}
@@ -87,9 +99,7 @@ export function getSourceTrackIdFromPath(audioPath: string): SourceTrackId {
 		normalized.includes("_system_") ||
 		normalized.includes("/system.") ||
 		normalized.includes("\\system.") ||
-		normalized.endsWith("system.mp4") ||
-		normalized.endsWith("system.m4a") ||
-		normalized.endsWith("system.wav")
+		/(?:^|[._-])system\.(?:mp4|m4a|wav)$/.test(filename)
 	) {
 		return "system";
 	}
@@ -108,7 +118,18 @@ export function hasNonDefaultSourceTrackSettings(
 	);
 }
 
+export function hasClipSourceAudioOverrides(
+	clips?: ClipRegion[],
+	settingsByClip?: Record<string, SourceAudioTrackSettings>,
+): boolean {
+	return (clips ?? []).some((clip) =>
+		hasNonDefaultSourceTrackSettings(settingsByClip?.[clip.id]),
+	);
+}
+
 export interface TimelineSlice {
+	/** Clip overrides are resolved against project defaults before scheduling. */
+	sourceGains?: Record<SourceTrackId | "embedded", number>;
 	outputStartMs?: number;
 	sourceStartMs: number;
 	sourceEndMs: number;
@@ -118,7 +139,12 @@ export interface TimelineSlice {
 export interface PreparedOfflineRender {
 	usesClipTimeline?: boolean;
 	mainBufferEntry: { buffer: AudioBuffer; gain: number } | null;
-	companionEntries: Array<{ buffer: AudioBuffer; startDelaySec: number; gain: number }>;
+	companionEntries: Array<{
+		buffer: AudioBuffer;
+		startDelaySec: number;
+		gain: number;
+		trackId?: SourceTrackId;
+	}>;
 	regionEntries: Array<{ buffer: AudioBuffer; region: AudioRegion }>;
 	mutedSourceOutputRangesSec: Array<{ startSec: number; endSec: number }>;
 	slices: TimelineSlice[];

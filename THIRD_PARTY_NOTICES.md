@@ -1,5 +1,37 @@
 # Third-party notices
 
+Desktop installers include this document, Recordly's license, dependency notices,
+and the cursor source/license files in the application's `resources/licenses`
+directory (`Recordly.app/Contents/Resources/licenses` on macOS). Each component
+retains its own license; Recordly terms do not replace third-party permissions.
+
+## OpenScreen
+
+Recordly began as a fork of [OpenScreen](https://github.com/siddharthvaddem/openscreen).
+The original OpenScreen code is provided under the following MIT license:
+
+> MIT License
+>
+> Copyright (c) 2025 Siddharth Vaddem
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all
+> copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+> SOFTWARE.
+
 ## Voom
 
 Recordly Share includes code adapted from the Voom project:

@@ -9,6 +9,7 @@ export type CloudShareTicket = {
 
 const TRUSTED_SHARE_ORIGINS = new Set([
 	"https://videos.recordly.dev",
+	"https://recordly-share-staging.youngchen3442.workers.dev",
 	"http://localhost:8787",
 	"http://127.0.0.1:8787",
 ]);
@@ -103,7 +104,8 @@ export function parseCloudShareTicket(value: unknown): CloudShareTicket {
 export function parseCloudRecordingList(data: unknown, endpoint: string) {
 	if (!data || typeof data !== "object" || !("videos" in data) || !Array.isArray(data.videos))
 		throw new Error("Invalid recordings response.");
-	return data.videos.slice(0, 100).map((raw: unknown) => {
+	if (data.videos.length > 50) throw new Error("Too many recordings in one response.");
+	return data.videos.map((raw: unknown) => {
 		if (!raw || typeof raw !== "object" || Array.isArray(raw))
 			throw new Error("Invalid recording response.");
 		const video = raw as Record<string, unknown>;
@@ -123,4 +125,18 @@ export function parseCloudRecordingList(data: unknown, endpoint: string) {
 			url: new URL(`/s/${video.share_code}`, endpoint).href,
 		};
 	});
+}
+
+export function parseCloudRecordingCursor(value: unknown): string | undefined {
+	if (value === undefined || value === null) return undefined;
+	if (typeof value !== "string" || !/^[A-Za-z0-9_-]{1,512}$/.test(value))
+		throw new Error("Invalid recordings cursor.");
+	return value;
+}
+
+export function parseCloudRecordingPage(data: unknown, endpoint: string) {
+	const videos = parseCloudRecordingList(data, endpoint);
+	const nextCursor = parseCloudRecordingCursor((data as Record<string, unknown>).nextCursor);
+	if (nextCursor && videos.length === 0) throw new Error("Invalid empty recordings page.");
+	return { videos, nextCursor };
 }

@@ -83,6 +83,7 @@ export class OfflineAudioProcessor extends AudioMediaProcessor {
 		sourceAudioTrackSettings: SourceAudioTrackSettings | undefined,
 		clipRegions: ClipRegion[] | undefined,
 		muxer: VideoMuxer,
+		sourceAudioTrackSettingsByClip?: Record<string, SourceAudioTrackSettings>,
 	): Promise<void> {
 		const prepared = await this.prepareOfflineRender(
 			videoUrl,
@@ -93,6 +94,7 @@ export class OfflineAudioProcessor extends AudioMediaProcessor {
 			sourceAudioFallbackStartDelayMsByPath,
 			sourceAudioTrackSettings,
 			clipRegions,
+			sourceAudioTrackSettingsByClip,
 		);
 		if (this.cancelled) return;
 		await this.renderAndEncodeChunked(prepared, muxer);
@@ -107,6 +109,7 @@ export class OfflineAudioProcessor extends AudioMediaProcessor {
 		sourceAudioFallbackStartDelayMsByPath?: Record<string, number>,
 		sourceAudioTrackSettings?: SourceAudioTrackSettings,
 		clipRegions?: ClipRegion[],
+		sourceAudioTrackSettingsByClip?: Record<string, SourceAudioTrackSettings>,
 	): Promise<PreparedOfflineRender> {
 		if (this.cancelled) throw new Error("Export cancelled");
 		this.onProgress?.(0);
@@ -120,24 +123,17 @@ export class OfflineAudioProcessor extends AudioMediaProcessor {
 				system: resolveSourceTrackGain(sourceAudioTrackSettings, "system"),
 				mixed: resolveSourceTrackGain(sourceAudioTrackSettings, "mixed"),
 			},
-			embeddedGain: Math.max(
-				0,
-				Math.min(
-					2,
-					sourceAudioTrackSettings?.mixed
-						? resolveSourceTrackGain(sourceAudioTrackSettings, "mixed")
-						: sourceAudioTrackSettings?.system
-							? resolveSourceTrackGain(sourceAudioTrackSettings, "system")
-							: 1,
-				),
-			),
 		});
+
+		// A microphone sidecar makes the embedded recording the system track.
+		// Saved settings may retain both keys after track metadata changes.
+		const embeddedTrackId = resolvedPlan.pathsByTrack.mic ? "system" : "mixed";
 
 		// Decode embedded source audio separately from companion sidecars.
 		const mainBuffer = resolvedPlan.includeEmbeddedInExport
 			? await this.decodeAudioFromUrl(videoUrl)
 			: null;
-		const mainBufferGain = resolveSourceTrackGain(sourceAudioTrackSettings, "mixed");
+		const mainBufferGain = resolveSourceTrackGain(sourceAudioTrackSettings, embeddedTrackId);
 		const mainBufferEntry = mainBuffer ? { buffer: mainBuffer, gain: mainBufferGain } : null;
 		if (this.cancelled) throw new Error("Export cancelled");
 
@@ -146,6 +142,7 @@ export class OfflineAudioProcessor extends AudioMediaProcessor {
 			buffer: AudioBuffer;
 			startDelaySec: number;
 			gain: number;
+			trackId: ReturnType<typeof getSourceTrackIdFromPath>;
 		}> = [];
 		const refDuration =
 			mainBuffer?.duration ??
@@ -155,16 +152,16 @@ export class OfflineAudioProcessor extends AudioMediaProcessor {
 			const buffer = await this.decodeAudioFromUrl(audioPath);
 			if (!buffer) continue;
 
+			const trackId = getSourceTrackIdFromPath(audioPath);
 			companionEntries.push({
 				buffer,
-				gain: resolveSourceTrackGain(
-					sourceAudioTrackSettings,
-					getSourceTrackIdFromPath(audioPath),
-				),
+				trackId,
+				gain: resolveSourceTrackGain(sourceAudioTrackSettings, trackId),
 				startDelaySec: estimateCompanionAudioStartDelaySeconds(
 					refDuration,
 					buffer.duration,
 					sourceAudioFallbackStartDelayMsByPath?.[audioPath],
+					trackId,
 				),
 			});
 		}
@@ -197,12 +194,22 @@ export class OfflineAudioProcessor extends AudioMediaProcessor {
 		const sourceDurationMs = sourceDurationSec * 1000;
 
 		// Build timeline slices (non-trimmed segments with speed info)
-		const slices = clipRegions
+		const slices: TimelineSlice[] = clipRegions
 			? clipRegions.map((clip) => ({
 					sourceStartMs: getClipSourceStartMs(clip),
 					sourceEndMs: getClipSourceEndMs(clip),
 					speed: clip.speed,
 					outputStartMs: clip.startMs,
+					...(sourceAudioTrackSettingsByClip
+						? {
+								sourceGains: this.resolveClipSourceGains(
+									clip.id,
+									sourceAudioTrackSettings,
+									sourceAudioTrackSettingsByClip,
+									embeddedTrackId,
+								),
+							}
+						: {}),
 				}))
 			: this.buildTimelineSlices(sourceDurationMs, trimRegions, speedRegions);
 
@@ -243,6 +250,21 @@ export class OfflineAudioProcessor extends AudioMediaProcessor {
 			slices,
 			outputDurationMs,
 			numChannels,
+		};
+	}
+
+	private resolveClipSourceGains(
+		clipId: string,
+		defaults: SourceAudioTrackSettings | undefined,
+		settingsByClip: Record<string, SourceAudioTrackSettings>,
+		embeddedTrackId: "mixed" | "system",
+	): NonNullable<TimelineSlice["sourceGains"]> {
+		const settings = { ...defaults, ...settingsByClip[clipId] };
+		return {
+			mic: resolveSourceTrackGain(settings, "mic"),
+			system: resolveSourceTrackGain(settings, "system"),
+			mixed: resolveSourceTrackGain(settings, "mixed"),
+			embedded: resolveSourceTrackGain(settings, embeddedTrackId),
 		};
 	}
 
@@ -375,6 +397,7 @@ export class OfflineAudioProcessor extends AudioMediaProcessor {
 					outputOffsetSec,
 					chunkSec,
 					prepared.mutedSourceOutputRangesSec,
+					"embedded",
 				);
 			}
 
@@ -389,6 +412,7 @@ export class OfflineAudioProcessor extends AudioMediaProcessor {
 					outputOffsetSec,
 					chunkSec,
 					prepared.mutedSourceOutputRangesSec,
+					entry.trackId,
 				);
 			}
 

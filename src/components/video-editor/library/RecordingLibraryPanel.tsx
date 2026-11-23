@@ -1,19 +1,12 @@
-import { RecordingThumbnail } from "./RecordingThumbnail";
+import { Checkbox, SearchField } from "@heroui/react";
 import { useEffect, useRef, useState } from "react";
-import { Checkbox, Label, Dropdown, SearchField, Button as HeroButton } from "@heroui/react";
-import {
-	FilmStrip,
-	Plus,
-	X,
-	Trash,
-	ArrowCounterClockwise,
-	DotsThree,
-	FolderOpen,
-} from "@/components/ui/icons";
+import { ErrorReportButton } from "@/components/feedback/ErrorReportButton";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/contexts/I18nContext";
 import { RECORDING_DRAG_TYPE } from "@/types/recordingLibrary";
 import { cn } from "@/lib/utils";
+import { RECORDING_DRAG_TYPE } from "@/types/recordingLibrary";
+import { RecordingThumbnail } from "./RecordingThumbnail";
 import type { useRecordingLibrary } from "./useRecordingLibrary";
 
 export function RecordingLibraryPanel({
@@ -30,7 +23,7 @@ export function RecordingLibraryPanel({
 	}, [library.open, library.entries.length]);
 	if (!library.open) return null;
 	const entries = library.entries.filter((entry) =>
-		entry.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()),
+		entry.name.toLocaleLowerCase(locale).includes(query.toLocaleLowerCase(locale)),
 	);
 	const allSelected =
 		entries.length > 0 && entries.every((entry) => library.selected.has(entry.path));
@@ -187,14 +180,16 @@ export function RecordingLibraryPanel({
 			<div className="custom-scrollbar min-h-0 flex-1 space-y-1 overflow-y-auto overflow-x-hidden px-3 pb-3">
 				{library.loading && (
 					<p role="status" className="px-2 py-4 text-xs text-muted-foreground">
-						Loading videos…
+						{te("loadingVideos", "Loading videos…")}
 					</p>
 				)}
 				{library.error && (
 					<div role="alert" className="p-2 text-xs">
-						<p>{library.error}</p>
+						<p>
+							{library.error} <ErrorReportButton error={library.error} />
+						</p>
 						<Button variant="ghost" size="sm" onClick={() => void library.refresh()}>
-							Retry
+							{te("retry", "Retry")}
 						</Button>
 					</div>
 				)}
@@ -202,10 +197,14 @@ export function RecordingLibraryPanel({
 					<div className="flex flex-col items-center gap-2 px-5 py-12 text-center text-muted-foreground">
 						<FilmStrip className="size-7" />
 						<p className="text-sm">
-							{query ? "No matching videos" : "Your recordings appear here"}
+							{query
+								? te("noMatchingVideos", "No matching videos")
+								: te("yourRecordingsAppearHere", "Your recordings appear here")}
 						</p>
 						<p className="text-xs">
-							{query ? "Try another search." : "Record a video to get started."}
+							{query
+								? te("tryAnotherSearch", "Try another search.")
+								: te("recordAVideoToGetStarted", "Record a video to get started.")}
 						</p>
 					</div>
 				)}
@@ -229,7 +228,9 @@ export function RecordingLibraryPanel({
 						)}
 					>
 						<Checkbox
-							aria-label={`Select ${entry.name}`}
+							aria-label={te("selectRecording", "Select {{name}}", {
+								name: entry.name,
+							})}
 							isDisabled={library.busy || library.importing}
 							isSelected={library.selected.has(entry.path)}
 							onChange={(checked) => toggle(entry.path, checked)}
@@ -257,11 +258,16 @@ export function RecordingLibraryPanel({
 									{entry.name}
 								</span>
 								<span className="mt-1 block text-[11px] text-muted-foreground">
-									{new Date(entry.createdAt).toLocaleDateString(undefined, {
+									{new Date(entry.createdAt).toLocaleDateString(locale, {
 										month: "short",
 										day: "numeric",
 									})}{" "}
-									· {(entry.bytes / 1024 / 1024).toFixed(1)} MB
+									·{" "}
+									{(entry.bytes / 1024 / 1024).toLocaleString(locale, {
+										minimumFractionDigits: 1,
+										maximumFractionDigits: 1,
+									})}{" "}
+									MB
 								</span>
 							</span>
 						</button>

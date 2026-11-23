@@ -1,7 +1,4 @@
 import { Kbd } from "@heroui/react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Button } from "@/components/ui/button";
-import { Gear as Settings2, Question as HelpCircle } from "@/components/ui/icons";
 import { useEffect, useState } from "react";
 import { useI18n, useScopedT } from "@/contexts/I18nContext";
 import { useShortcuts } from "@/contexts/ShortcutsContext";
@@ -62,13 +59,13 @@ export function KeyboardShortcutsHelp() {
 							<span className="text-muted-foreground">
 								{t("keyboardShortcuts.panTimeline")}
 							</span>
-							<Kbd>{scrollLabels.pan}</Kbd>
+							<Kbd>{bindingLabel(scrollLabels.pan)}</Kbd>
 						</div>
 						<div className="flex items-center justify-between mt-1.5">
 							<span className="text-muted-foreground">
 								{t("keyboardShortcuts.zoomTimeline")}
 							</span>
-							<Kbd>{scrollLabels.zoom}</Kbd>
+							<Kbd>{bindingLabel(scrollLabels.zoom)}</Kbd>
 						</div>
 						<div className="flex items-center justify-between mt-1.5">
 							<span className="text-muted-foreground">

@@ -1,25 +1,28 @@
 import type { WebDemuxer } from "web-demuxer";
-import { requiresClipTimelineRendering } from "./clipTimeline";
 import type {
 	AudioRegion,
 	ClipRegion,
 	SourceAudioTrackSettings,
 	SpeedRegion,
 } from "@/components/video-editor/types";
-import { resolveSourceTrackRoutingPolicy } from "./sourceTrackRoutingPolicy";
-import { AudioTranscodeProcessor } from "./audioTranscodeProcessor";
 import {
+	hasClipSourceAudioOverrides,
 	hasNonDefaultSourceTrackSettings,
 	MIN_SPEED_REGION_DELTA_MS,
 	MP4_AUDIO_CODEC,
+	resolveAudioTimestampOffsetUs,
 	type TrimLikeRegion,
 } from "./audioProcessorShared";
+import { AudioTranscodeProcessor } from "./audioTranscodeProcessor";
+import { requiresClipTimelineRendering } from "./clipTimeline";
 import type { VideoMuxer } from "./muxer";
+import { resolveSourceTrackRoutingPolicy } from "./sourceTrackRoutingPolicy";
 
 export {
 	getSourceTrackIdFromPath,
 	hasNonDefaultSourceTrackSettings,
 	isAacAudioEncodingSupported,
+	resolveAudioTimestampOffsetUs,
 	softLimitOfflineMixPeaksInPlace,
 } from "./audioProcessorShared";
 
@@ -57,7 +60,7 @@ export class AudioProcessor extends AudioTranscodeProcessor {
 				if (done || !chunk) break;
 
 				if (passthroughTimestampOffsetUs === null) {
-					passthroughTimestampOffsetUs = chunk.timestamp;
+					passthroughTimestampOffsetUs = resolveAudioTimestampOffsetUs(chunk.timestamp);
 				}
 
 				const normalizedTimestamp = Math.max(
@@ -113,6 +116,7 @@ export class AudioProcessor extends AudioTranscodeProcessor {
 		sourceAudioFallbackStartDelayMsByPath?: Record<string, number>,
 		sourceAudioTrackSettings?: SourceAudioTrackSettings,
 		clipRegions?: ClipRegion[],
+		sourceAudioTrackSettingsByClip?: Record<string, SourceAudioTrackSettings>,
 	): Promise<void> {
 		const sortedTrims = trimRegions
 			? [...trimRegions].sort((a, b) => a.startMs - b.startMs)
@@ -155,6 +159,7 @@ export class AudioProcessor extends AudioTranscodeProcessor {
 			sortedAudioRegions.length > 0 ||
 			needsSourceAudioMixing ||
 			hasNonDefaultSourceTrackSettings(sourceAudioTrackSettings) ||
+			hasClipSourceAudioOverrides(clipRegions, sourceAudioTrackSettingsByClip) ||
 			(clipRegions ?? []).some((clip) => Boolean(clip.muted))
 		) {
 			await this.renderAndMuxOfflineAudio(
@@ -167,6 +172,7 @@ export class AudioProcessor extends AudioTranscodeProcessor {
 				sourceAudioTrackSettings,
 				clipRegions,
 				muxer,
+				sourceAudioTrackSettingsByClip,
 			);
 			return;
 		}
@@ -176,7 +182,9 @@ export class AudioProcessor extends AudioTranscodeProcessor {
 			const sidecarDemuxer = await this.loadAudioFileDemuxer(routingPolicy.playbackPaths[0]);
 			if (sidecarDemuxer) {
 				try {
-					await this.processTrimOnlyAudio(sidecarDemuxer, muxer, sortedTrims);
+					if (await this.processTrimOnlyAudio(sidecarDemuxer, muxer, sortedTrims)) {
+						return;
+					}
 				} finally {
 					try {
 						sidecarDemuxer.destroy();
@@ -184,11 +192,10 @@ export class AudioProcessor extends AudioTranscodeProcessor {
 						/* cleanup */
 					}
 				}
-				return;
 			}
-			// Fallback to offline rendering if demuxer creation failed
+			if (this.cancelled) return;
 			console.warn(
-				"[AudioProcessor] Fast sidecar demux failed, falling back to offline rendering",
+				"[AudioProcessor] Could not read a supported sidecar audio track; trying offline rendering",
 			);
 			await this.renderAndMuxOfflineAudio(
 				videoUrl,
@@ -200,6 +207,7 @@ export class AudioProcessor extends AudioTranscodeProcessor {
 				sourceAudioTrackSettings,
 				clipRegions,
 				muxer,
+				sourceAudioTrackSettingsByClip,
 			);
 			return;
 		}
@@ -247,6 +255,7 @@ export class AudioProcessor extends AudioTranscodeProcessor {
 		sourceAudioFallbackStartDelayMsByPath?: Record<string, number>,
 		sourceAudioTrackSettings?: SourceAudioTrackSettings,
 		clipRegions?: ClipRegion[],
+		sourceAudioTrackSettingsByClip?: Record<string, SourceAudioTrackSettings>,
 	): Promise<Blob> {
 		const sortedTrims = trimRegions
 			? [...trimRegions].sort((a, b) => a.startMs - b.startMs)
@@ -274,6 +283,7 @@ export class AudioProcessor extends AudioTranscodeProcessor {
 			sourceAudioFallbackStartDelayMsByPath,
 			sourceAudioTrackSettings,
 			clipRegions,
+			sourceAudioTrackSettingsByClip,
 		);
 		return this.renderToWavBlobChunked(prepared);
 	}
