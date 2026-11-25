@@ -7,7 +7,6 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-	CaretDown,
 	Crop,
 	MagicWand,
 	MagnifyingGlassPlus,
@@ -18,14 +17,10 @@ import {
 	Scissors,
 	SkipBack,
 	SkipForward,
-	SpeakerHigh,
-	SpeakerLow,
-	SpeakerX,
 	Trash,
 	TrimEnd,
 	TrimStart,
 } from "@/components/ui/icons";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
 	Select,
 	SelectContent,
@@ -34,7 +29,6 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Slider } from "@/components/ui/slider";
 import type { useI18n } from "@/contexts/I18nContext";
 import { useI18n as useUiLocale } from "@/contexts/I18nContext";
 import { useShortcuts } from "@/contexts/ShortcutsContext";
@@ -55,6 +49,9 @@ import { AnnotationToolbar } from "./AnnotationToolbar";
 import { AspectRatioPicker } from "./AspectRatioPicker";
 import { EditorVideoPreview } from "./EditorVideoPreview";
 import { InlineCropEditor } from "./InlineCropEditor";
+
+// Hidden for now; the playback resolution state and preview scaling stay wired up.
+const SHOW_PLAYBACK_RESOLUTION_PICKER = false;
 
 // Temporarily hide the toolbar while retaining the annotation tools.
 const SHOW_ANNOTATION_TOOLBAR = false;
@@ -83,7 +80,6 @@ type Props = {
 	currentTime: number;
 	isPlaying: boolean;
 	previewVolume: number;
-	setPreviewVolume: Dispatch<SetStateAction<number>>;
 	suspendRendering: boolean;
 	appearance: ReturnType<typeof useAppearanceState>;
 	timeline: ReturnType<typeof useTimelineState>;
@@ -111,7 +107,7 @@ type Props = {
 };
 
 export function EditorPreviewPanel(props: Props) {
-	const { locale, t: uiText } = useUiLocale();
+	const { t: uiText } = useUiLocale();
 	const { shortcuts, isMac } = useShortcuts();
 	const [playbackResolution, setPlaybackResolution] = useState("1");
 	const {
@@ -126,7 +122,6 @@ export function EditorPreviewPanel(props: Props) {
 		currentTime,
 		isPlaying,
 		previewVolume,
-		setPreviewVolume,
 		suspendRendering,
 		appearance,
 		timeline,
@@ -323,7 +318,6 @@ export function EditorPreviewPanel(props: Props) {
 								<span className="editor-playback-add-label font-medium">
 									{t("editor.toolbar.addLayer")}
 								</span>
-								<CaretDown className="editor-playback-add-caret h-3 w-3" />
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="start">
@@ -437,17 +431,6 @@ export function EditorPreviewPanel(props: Props) {
 					>
 						<MagicWand className="h-4 w-4" />
 					</Button>
-					<Button
-						onClick={() => timelineRef.current?.clearAllZooms()}
-						disabled={timeline.zoomRegions.length === 0}
-						variant="ghost"
-						size="icon"
-						className="h-9 w-9"
-						aria-label={clearZoomsLabel}
-						title={clearZoomsTitle}
-					>
-						<Trash className="h-4 w-4" aria-hidden="true" />
-					</Button>
 				</div>
 
 				<div className="editor-playback-center z-10 flex items-center justify-center">
@@ -539,32 +522,13 @@ export function EditorPreviewPanel(props: Props) {
 							<Plus className="size-3.5" aria-hidden="true" />
 						</Button>
 					</div>
-					<div title={playbackResolutionLabel}>
-						<Select
-							aria-label={playbackResolutionLabel}
-							value={playbackResolution}
-							onValueChange={setPlaybackResolution}
-							disabled={!videoPath || isCropping}
-						>
-							<SelectTrigger className="editor-playback-resolution text-xs">
-								<SelectValue className="truncate" />
-							</SelectTrigger>
-							<SelectContent placement="top end" className="min-w-24">
-								<SelectItem value="1">
-									{t("editor.playback.fullResolution")}
-								</SelectItem>
-								<SelectItem value="0.5">1/2</SelectItem>
-								<SelectItem value="0.25">1/4</SelectItem>
-							</SelectContent>
-						</Select>
-					</div>
-					<Popover>
-						<PopoverTrigger asChild>
-							<Button
-								variant="ghost"
-								size="icon"
-								aria-label={t("editor.playback.volume", "Preview volume")}
-								title={t("editor.playback.volume", "Preview volume")}
+					{SHOW_PLAYBACK_RESOLUTION_PICKER && (
+						<div title={playbackResolutionLabel}>
+							<Select
+								aria-label={playbackResolutionLabel}
+								value={playbackResolution}
+								onValueChange={setPlaybackResolution}
+								disabled={!videoPath || isCropping}
 							>
 								{previewVolume <= 0.001 ? (
 									<SpeakerX className="size-3.5" />

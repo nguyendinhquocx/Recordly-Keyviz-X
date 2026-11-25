@@ -12,7 +12,6 @@ import { UpgradeButton } from "@/components/billing/UpgradeButton";
 import { FeedbackDialog } from "@/components/feedback/FeedbackDialog";
 import { Button } from "@/components/ui/button";
 import { FilmStrip, House, ArrowCounterClockwise as Undo2 } from "@/components/ui/icons";
-import { RecordlyMark } from "@/components/ui/RecordlyMark";
 import type { useI18n } from "@/contexts/I18nContext";
 import { useI18n as useUiLocale } from "@/contexts/I18nContext";
 import type { useExportDimensions } from "../export/useExportDimensions";
@@ -131,6 +130,10 @@ export function EditorHeader(props: Props) {
 			renameButtonRef.current?.focus();
 		}
 	}, [isEditingProjectName]);
+	const recordingUnavailable =
+		exportSession.isExporting ||
+		exportSession.isOptimizingGif ||
+		exportSession.hasPendingExportSave;
 
 	const recordingUnavailable =
 		exportSession.isExporting ||

@@ -134,15 +134,20 @@ export function FeedbackDialog({
 							sendingRef.current = true;
 							setSending(true);
 							setError("");
+							const operation = beginAppOperation("feedback.send");
 							try {
+								operation.step("collect-diagnostics");
+								const logs = await collectFeedbackDiagnostics();
+								operation.step("submit");
 								await submitFeedback({
 									title: `${sentiments.find((item) => item.value === sentiment)?.emoji ?? ""} ${message}`,
 									subject: "other",
 									message,
 									files,
-									logs: await collectFeedbackDiagnostics(),
+									logs,
 									onUploadProgress: setUploadProgress,
 								});
+								operation.finish("succeeded");
 								setSent(true);
 								if (userId)
 									updateFeedbackDraft(userId, {
@@ -151,6 +156,7 @@ export function FeedbackDialog({
 										files: [],
 									});
 							} catch (error) {
+								operation.finish("failed");
 								setError(feedbackErrorMessage(error));
 							} finally {
 								sendingRef.current = false;

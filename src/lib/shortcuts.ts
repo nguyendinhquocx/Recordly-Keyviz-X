@@ -93,6 +93,9 @@ export const CLEAR_ALL_ZOOMS_SHORTCUT: ShortcutBinding = {
 	shift: true,
 };
 
+export const COPY_SELECTED_SHORTCUT: ShortcutBinding = { key: "c", ctrl: true };
+export const PASTE_SHORTCUT: ShortcutBinding = { key: "v", ctrl: true };
+
 export const FIXED_SHORTCUTS: FixedShortcut[] = [
 	{ label: "shortcuts.actions.cycleForward", display: "Tab", bindings: [{ key: "tab" }] },
 	{

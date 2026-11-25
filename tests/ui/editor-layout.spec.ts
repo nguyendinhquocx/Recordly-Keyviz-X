@@ -121,9 +121,7 @@ test("header breadcrumb fits long names, native chrome and compact windows", asy
 			expect(left!.x + left!.width).toBeLessThanOrEqual(right!.x);
 			expect(center!.x + center!.width).toBeLessThanOrEqual(right!.x);
 			expect(center!.width).toBeGreaterThanOrEqual(120);
-			const clips = await page
-				.getByRole("button", { name: "Clips", exact: true })
-				.boundingBox();
+			const clips = await page.getByRole("button", { name: "Clips", exact: true }).boundingBox();
 			expect(clips!.x + clips!.width).toBeLessThanOrEqual(right!.x);
 			const buttons = await page.locator(".editor-playback button").evaluateAll((nodes) =>
 				nodes

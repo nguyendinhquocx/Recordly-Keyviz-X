@@ -37,7 +37,11 @@ type Props = {
 	currentTime: number;
 	handleSelectAnnotation: (id: string | null) => void;
 	onDuplicateSelectedRegion: () => void;
+	onCopySelectedRegion: () => boolean;
+	onPasteCopiedRegion: () => boolean;
 };
+
+const EXPANDABLE_TRACK_THRESHOLD = 3;
 
 export function EditorTimelinePanel(props: Props) {
 	const t = useScopedT("editor");
@@ -107,6 +111,8 @@ export function EditorTimelinePanel(props: Props) {
 				onZoomSpanChange={zoomCommands.handleZoomSpanChange}
 				onZoomDelete={zoomCommands.handleZoomDelete}
 				onDuplicateSelectedRegion={props.onDuplicateSelectedRegion}
+				onCopySelectedRegion={props.onCopySelectedRegion}
+				onPasteCopiedRegion={props.onPasteCopiedRegion}
 				onClearZooms={zoomCommands.handleClearZooms}
 				selectedZoomId={timeline.selectedZoomId}
 				onSelectZoom={zoomCommands.handleSelectZoom}
@@ -189,6 +195,7 @@ export function EditorTimelinePanel(props: Props) {
 						);
 					}
 				}}
+				onTrackCountChange={setTrackCount}
 				showSourceAudioTrack={timeline.clipRegions.some((clip) => clip.showSourceAudio)}
 				sourceAudioResourceVersion={timeline.sourceAudioFallbackRefreshKey}
 				sourceAudioTrackSettings={audio.getSourceAudioTrackSettingsForClip(
