@@ -39,6 +39,7 @@ import {
 	cleanupAllExportStreams,
 	cleanupNativeVideoExportSessions,
 	getSelectedSourceId,
+	killLinuxPortalCaptureProcess,
 	killWindowsCaptureProcess,
 	registerIpcHandlers,
 } from "./ipc/handlers";
@@ -95,6 +96,7 @@ import {
 	getStartupOnboardingWindow,
 	getUpdateToastWindow,
 	hideUpdateToastWindow,
+	isHudHiddenByUser,
 	isHudOverlayMousePassthroughSupported,
 	reassertHudOverlayMousePassthrough as reassertHudOverlayMouseState,
 	replayOnboardingIntro,
@@ -843,7 +845,11 @@ function createTray() {
 }
 
 function shouldUseTray() {
-	return process.platform === "linux" || desktopPresenceNeedsTray();
+	return (
+		process.platform === "linux" ||
+		(process.platform === "win32" && isHudHiddenByUser()) ||
+		desktopPresenceNeedsTray()
+	);
 }
 
 function getPublicAssetPath(filename: string) {
@@ -1280,6 +1286,7 @@ app.on("before-quit", () => {
 		console.warn("Could not clear recording undo cache", error),
 	);
 	killWindowsCaptureProcess();
+	killLinuxPortalCaptureProcess();
 	showCursor();
 	void cleanupAllExportStreams();
 	// Keyviz sidecar: stdin pipe đóng khi Electron chết là đủ; dispose chủ động cho chắc.

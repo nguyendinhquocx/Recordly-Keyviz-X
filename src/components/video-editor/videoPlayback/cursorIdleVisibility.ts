@@ -92,7 +92,9 @@ export function getCursorIdleIntervals(
 			if (sample.mouseButton) held.delete(sample.mouseButton);
 			else held.clear();
 		}
-		const interaction = Boolean(sample.interactionType && sample.interactionType !== "move");
+		const interaction =
+			sample.cursorVisible !== undefined ||
+			Boolean(sample.interactionType && sample.interactionType !== "move");
 		const stateChanged = Boolean(
 			sample.cursorType && cursorType && sample.cursorType !== cursorType,
 		);
@@ -156,4 +158,9 @@ export function getCursorIdleOpacity(
 	// pause. A second pause may begin during recovery; keep that join continuous.
 	const previous = intervals[lo - 2];
 	return intervalOpacity(idle) * (previous ? intervalOpacity(previous) : 1);
+}
+
+export function getCursorIdleBlurPx(opacity: number, cursorHeight: number): number {
+	// Match the captions' blur relative to the size of the artwork.
+	return opacity > 0 ? (1 - opacity) * cursorHeight * 0.18 : 0;
 }

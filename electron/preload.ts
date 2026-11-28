@@ -221,11 +221,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	hudOverlayClose: () => {
 		ipcRenderer.send("hud-overlay-close");
 	},
-	onHudOverlayRestored: (callback: () => void) => {
-		const listener = () => callback();
-		ipcRenderer.on("hud-overlay-restored", listener);
-		return () => ipcRenderer.removeListener("hud-overlay-restored", listener);
-	},
 	getEditorMode: () => ipcRenderer.invoke("get-editor-mode"),
 	onEditorModeChanged: (callback: (inEditor: boolean) => void) => {
 		const listener = (_event: Electron.IpcRendererEvent, inEditor: boolean) =>
@@ -280,7 +275,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 		return ipcRenderer.invoke("generate-wallpaper-thumbnail", filePath);
 	},
 	probeNativeVideoMetadata: (filePath: string) => {
-		return ipcRenderer.invoke("probe-native-video-metadata", filePath) as Promise<{
+		return invokeWithDiagnostics("probe-native-video-metadata", filePath) as Promise<{
 			success: boolean;
 			metadata?: NativeVideoMetadataProbe;
 			error?: string;
@@ -455,9 +450,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 			editedAudioMimeType?: string | null;
 		},
 	) => {
-		return ipcRenderer
-			.invoke("native-video-export-finish", sessionId, options)
-			.then((result) => {
+		return invokeWithDiagnostics("native-video-export-finish", sessionId, options).then(
+			(result) => {
 				settleNativeVideoExportPendingRequests(
 					sessionId,
 					result?.success
@@ -472,7 +466,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 				);
 
 				return result;
-			}) as Promise<{
+			},
+		) as Promise<{
 			success: boolean;
 			data?: Uint8Array;
 			encoderName?: string;
@@ -528,7 +523,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 		return invokeWithDiagnostics("mux-exported-video-audio-from-path", videoPath, options);
 	},
 	openExportStream: (options?: { extension?: string }) => {
-		return ipcRenderer.invoke("export-stream-open", options);
+		return invokeWithDiagnostics("export-stream-open", options);
 	},
 	writeExportStreamChunk: (streamId: string, position: number, chunk: Uint8Array) => {
 		return ipcRenderer.invoke("export-stream-write", streamId, position, chunk);
@@ -671,6 +666,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 			capturesMicrophone?: boolean;
 			microphoneDeviceId?: string;
 			microphoneLabel?: string;
+			startLinuxCapturePaused?: boolean;
 		},
 	) => {
 		return invokeWithDiagnostics("start-native-screen-recording", source, options);
@@ -1397,6 +1393,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	},
 	isNativeWindowsCaptureAvailable: () =>
 		ipcRenderer.invoke("is-native-windows-capture-available"),
+	isNativeLinuxPortalCaptureAvailable: () =>
+		ipcRenderer.invoke("is-native-linux-portal-capture-available"),
 	muxNativeWindowsRecording: (expectedDurationMs?: number) =>
 		invokeWithDiagnostics("mux-native-windows-recording", expectedDurationMs),
 	hideOsCursor: () => ipcRenderer.invoke("hide-cursor"),
